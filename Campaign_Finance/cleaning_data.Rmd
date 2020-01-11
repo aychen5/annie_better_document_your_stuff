@@ -1,0 +1,101 @@
+---
+title: "cleaning_data"
+author: "Annie"
+date: "1/10/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(dplyr, ggplot2, readr, tidyr)
+```
+
+```{r}
+path <- "/Users/anniechen/Dropbox/Thesis"
+data <- read_csv(file.path(path, "form-summary.csv"))
+
+glimpse(data)
+
+dat <- data %>% 
+  select(everything(), 
+         gift_value = `Gift value`,
+         date_gift = `Date Gift Made`,
+         donor_electorate = `Donor electorate`,
+         donor_address = `Donor address`) %>% 
+  separate(date_gift, c("day", "month", "year"), sep = "-") %>% 
+  mutate_at(vars("day", "month", "year"), funs(as.numeric(.)))
+```
+
+# Queensland Elections
+
+- Dates of State elections: 
+ + 2009 - March 21
+ + 2012 - March 24
+ + 2015 - January 31
+ + 2017 - November 25
+ + 2020 - October 31
+ 
+- (State General Election) Returns for each type of actor:
+ + Candidate
+ + Donor
+ + Third Party
+ + Registered Political Party
+ + Broadcaster
+ + Publisher
+
+
+# Total political donations by year
+```{r}
+View(dat)
+
+dat %>%
+ group_by(year) %>% 
+ tally(gift_value) %>% 
+ ggplot() +
+  geom_line(aes(x = year, y = n)) +
+  geom_vline(xintercept = 2017, lty = 2, col = "red") +
+  theme_bw()
+```
+
+
+# Recievers of the most funds 
+```{r}
+unique(dat$Recipient)
+
+# rename this: "COMMUNICATIONS ELECTRICAL ELECTRONIC ENERGY INFORMATION POSTAL PLUMBING AND ALLIED SERVICES UNION OF AUSTRALIA ELECTRICAL DIVISION QUEENSLAND & NORTHERN TERRITORY DIVISIONAL BRANCH"
+dat$Recipient[dat$Recipient == unique(dat$Recipient)[56]] <- "CEEEIPP Union"
+
+dat %>% 
+  group_by(Recipient, year) %>%
+  tally(gift_value) %>% 
+  ungroup() %>% 
+  ggplot(.) +
+  geom_line(aes(x = year, y = n, color = Recipient), show.legend = FALSE) +
+  geom_vline(xintercept = 2017, lty = 2, col = "red") +
+  theme_bw()
+```
+
+
+# Donors of the most funds 
+
+```{r}
+unique(dat$Donor)
+
+dat %>% 
+  group_by(Donor, year) %>%
+  tally(gift_value) %>% 
+  ungroup() %>% 
+  ggplot(.) +
+  geom_line(aes(x = year, y = n, color = Donor), show.legend = FALSE) +
+  geom_vline(xintercept = c(2017, 2015, 2012, 2009), lty = 2, col = "red") +
+  theme_bw()
+```
+
+
+
+
