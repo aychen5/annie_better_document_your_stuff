@@ -1,0 +1,804 @@
+---
+title: "tests"
+author: "Annie"
+date: "4/23/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+MANIPULATION ##################################################################
+
+
+Basic Binomial test
+```{r}
+#when restrict the margin of victory to 2% bandwidth
+#right of cutoff
+data_candidateB$margin[data_candidateB$margin < 0.02 & data_candidateB$margin > 0]
+#27 observations
+#left of cutoff
+data_candidateB$margin[data_candidateB$margin > -0.02 & data_candidateB$margin < 0]
+#34 observtaions
+
+binom.test(27, 61, 1/2)
+#p-value is 0.44 (no sorting)
+
+
+#when restrict the margin of victory to 5% bandwidth
+#right of cutoff
+data_candidateB$margin[data_candidateB$margin < 0.05 & data_candidateB$margin > 0]
+#63 observations
+#left of cutoff
+data_candidateB$margin[data_candidateB$margin > -0.05 & data_candidateB$margin < 0]
+#79 observtaions
+
+binom.test(63, 142, 1/2)
+#p-value is 0.44 (no sorting)
+```
+
+McCrary Density Test
+```{r}
+
+DCdensity(runvar = data_candidateB$margin,  bw = bandwidthB, cutpoint = 0, plot = FALSE, ext.out = TRUE)
+
+
+myDCdensity <- function(runvar, cutpoint, bw = bandwidthB, my_abline = 0, my_title = "Default"){
+
+  # get the default plot
+  myplot <- DCdensity(runvar, cutpoint, bw = bandwidthB, plot = TRUE)
+
+  # 'additional graphical options to modify the plot'
+  abline(v = my_abline, lty=2)
+  title(main = my_title)
+
+  # return
+  return(myplot)
+}
+
+#McCrary
+t<- DCdensity(runvar = data_candidateB$margin, bw = bandwidthB, cutpoint = 0, ext.out=TRUE, plot = FALSE)$theta
+se<- DCdensity(runvar = data_candidateB$margin,  bw = bandwidthB, cutpoint = 0, ext.out=TRUE, plot = FALSE)$se
+myDCdensity(runvar = data_candidateB$margin, cutpoint = 0,  my_abline = 0, my_title = "p= 0.124")
+```
+
+
+Histogram of number of observations
+```{r}
+ggplot(data = dplyr::filter(data_candidateB, inc == 1 & margin <0.2 & margin > -0.2),
+       aes(x= margin)) +
+  geom_histogram(binwidth = 0.01)+
+  geom_vline(xintercept = 0, lty = 2, col= "red") +
+  labs(x = "Incumbent Margin of Victory", y = "# of observations")+
+  theme_bw(
+  )
+
+hist(dplyr::filter(data_candidateB, inc == 1 & margin <0.3 & margin > -0.3)$margin,
+     main = "Incumbent Imbalance", ylab= "# of observations", xlab = "Incumbent Margin of Victory", 
+     breaks = 30) + abline(v = 0, col = "blue", lwd = 1.5)
+# left = 6, right = 14 (0.01)
+# left = 14, right = 21 (0.02)
+```
+
+
+Cattaneo, Idrobo, Titiunik (2018) density test
+```{r}
+summary(rddensity(data_candidateB$margin))
+summary(rddensity(data_candidateB$margin, 
+                  p = 1, c = 0,kernel = "triangular"))
+
+
+test<-rddensity(data_candidateB$margin, c = 0, p = 1, 
+                h = bandwidthB,
+                kernel = "triangular", all = TRUE)
+summary(test)
+
+rdplotdensity(test, na.omit(data_candidateB$margin), plotGrid = "qs",
+              plotN = 25,
+              title = "Party-level CIT (2017a) Density Test", xlabel = "Margin of Victory \n (Robust p-value = 0.41)", ylabel = "Density", type = "both")
+```
+
+
+PLACEBO ##################################################################
+
+Placebo cutoffs (margin of victory at 10% and 5%)
+```{r}
+est <- vector()
+lower <- vector()
+upper <- vector()
+bandw <- vector()
+nobsl <- vector()
+nobsr <- vector()
+
+placecut10 <- rdrobust(data_candidateB$Wint1, 
+                       data_candidateB$margin,
+                       covs = data_candidateB$inc,
+                       p = 1, c = 0.1,
+                       kernel = "triangular")
+summary(placecut10)
+est[1]<- placecut10$coef[2]
+lower[1] <- placecut10$ci[3,1]
+upper[1] <- placecut10$ci[3,2]
+bandw[1] <- placecut10$bws[1]
+nobsl[1] <-placecut10$Nh[1]
+nobsr[1] <-placecut10$Nh[2]
+  
+placecut5 <-rdrobust(data_candidateB$Wint1,
+                     data_candidateB$margin, 
+                     covs = data_candidateB$inc,
+                     p = 1, c = 0.05,kernel = "triangular")
+est[2]<- placecut5$coef[2]
+lower[2] <- placecut5$ci[3,1]
+upper[2] <- placecut5$ci[3,2]
+bandw[2] <- placecut5$bws[1]
+nobsl[2] <- placecut5$Nh[1]
+nobsr[2] <-placecut5$Nh[2]
+  
+placecut2 <- rdrobust(data_candidateB$Wint1,
+                       covs = data_candidateB$inc,
+                      data_candidateB$margin, p = 1, c = 0.02,kernel = "triangular")
+est[3]<- placecut2$coef[2]
+lower[3] <- placecut2$ci[3,1]
+upper[3] <- placecut2$ci[3,2]
+bandw[3] <- placecut2$bws[1]
+nobsl[3] <- placecut2$Nh[1]
+nobsr[3] <-placecut2$Nh[2]
+
+placecut0 <- rdrobust(data_candidateB$Wint1,
+                      data_candidateB$margin, 
+                      covs = data_candidateB$inc,
+                      p = 1, c = 0, kernel = "triangular")
+est[4]<- placecut0$coef[2]
+lower[4] <- placecut0$ci[3,1]
+upper[4] <- placecut0$ci[3,2]
+bandw[4] <- placecut0$bws[1]
+nobsl[4] <-placecut0$Nh[1]
+nobsr[4] <-placecut0$Nh[2]
+    
+placecut_10 <- rdrobust(data_candidateB$Wint1,
+                        data_candidateB$margin, 
+                        covs = data_candidateB$inc,
+                        p = 1, c = -0.1,kernel = "triangular")
+est[5]<- placecut_10$coef[2]
+lower[5] <- placecut_10$ci[3,1]
+upper[5] <- placecut_10$ci[3,2]
+bandw[5] <- placecut_10$bws[1]
+nobsl[5] <-placecut_10$Nh[1]
+nobsr[5] <-placecut_10$Nh[2]
+  
+placecut_5 <- rdrobust(data_candidateB$Wint1,
+                       data_candidateB$margin, 
+                       covs = data_candidateB$inc,
+                       p = 1, c = -0.05,kernel = "triangular")
+est[6]<- placecut_5$coef[2]
+lower[6] <- placecut_5$ci[3,1]
+upper[6] <- placecut_5$ci[3,2]
+bandw[6] <- placecut_5$bws[1]
+nobsl[6] <-placecut_5$Nh[1]
+nobsr[6] <-placecut_5$Nh[2]
+  
+placecut_2 <- rdrobust(data_candidateB$Wint1,
+                       data_candidateB$margin, 
+                       covs = data_candidateB$inc,
+                       p = 1, c = -0.02,kernel = "triangular")
+est[7]<- placecut_2$coef[2]
+lower[7] <- placecut_2$ci[3,1]
+upper[7] <- placecut_2$ci[3,2]
+bandw[7] <- placecut_2$bws[1]
+nobsl[7] <-placecut_2$Nh[1]
+nobsr[7] <-placecut_2$Nh[2]
+placecut <- data.frame(est, 
+                       CI = paste(round(lower, 2), round(upper, 2), sep = ", "), 
+                       bandw, cutoff = c(-0.1, -0.05, -0.02, 0, 0.02, 0.05, 0.1), 
+                       obs = paste(nobsl,nobsr, sep = ", "))
+
+library(kableExtra)
+kable(placecut, col.names = c("RD Estimate", "Confidence Intervals", 
+                              "Optimal Bandwidth", "Alternative Cutoff", 
+                              "Observations (L/R)")) %>% kable_styling()
+
+
+ggplot(data= placecut, aes(x = cutoff, y= est)) +
+  geom_point() +
+  geom_errorbar(ymin=lower, ymax=upper, width = 0.0025) +
+  scale_y_continuous(limits = c(-1, 1)) +
+  geom_hline(yintercept = 0, lty = 2, col = "red") +
+  labs(x = "Cutoff", y = "RD Estimate (Pr(Winning))", title = "Party-level: Placebo Test of Different Cutoffs") +
+  theme_bw()
+```
+
+Placebo Tests on pre-treatment covariates  (local linear)
+```{r}
+### open seat (t)
+ll.placeopen.5 <- rdrobust(y=data_candidateB$openseat,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+popen5 <- ll.placeopen.5$pv[3]
+ll.placeopen.opt <- rdrobust(y=data_candidateB$openseat,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+popenmpt <- ll.placeopen.opt$pv[3]
+
+
+### win (t-1)
+ll.placew.5 <- rdrobust(y=data_candidateB$Wint_1,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pw5 <- ll.placew.5$pv[3]
+ll.placev.5 <- rdrobust(y=data_candidateB$VPt_1,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pv5 <- ll.placev.5$pv[3]
+
+### vote share (t-1)
+ll.placew.opt <- rdrobust(y=data_candidateB$Wint_1,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pwopt <- ll.placew.opt$pv[3]
+ll.placev.opt <- rdrobust(y=data_candidateB$VPt_1,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pvopt <- ll.placev.opt$pv[3]
+
+### ALP incumbent (t)
+ll.placeinc.5 <- rdrobust(y=data_candidateB$inc,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pinc5 <- ll.placeinc.5$pv[3]
+ll.placeinc.opt <- rdrobust(y=data_candidateB$inc,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pincopt <- ll.placeinc.opt$pv[3]
+
+### LIB/NAT incumbent (t)
+ll.placeincL.5 <- rdrobust(y=data_candidateB$incLIB,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pincL5 <- ll.placeincL.5$pv[3]
+ll.placeincL.opt <- rdrobust(y=data_candidateB$incLIB,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pincLopt <- ll.placeincL.opt$pv[3]
+
+
+### length of time party was in power in that division  (t)
+ll.placePRE.5 <- rdrobust(y=as.numeric(data_candidateB$Prev_TermsALP),
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pPRE5 <- ll.placePRE.5$pv[3]
+ll.placePRE.opt <- rdrobust(y=as.numeric(data_candidateB$Prev_TermsALP),
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pPREopt <- ll.placePRE.opt$pv[3]
+
+
+### turnout (t)
+ll.placeturn.5 <- rdrobust(y=as.numeric(data_candidateB$TurnoutPercentage),
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pturn5 <- ll.placeturn.5$pv[3]
+ll.placeturn.opt <- rdrobust(y=as.numeric(data_candidateB$TurnoutPercentage),
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pturnopt <- ll.placeturn.opt$pv[3]
+
+
+
+### campaign donations (t)
+ll.placedon.5 <- rdrobust(y=data_candidateB$donations,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pdon5 <- ll.placedon.5$pv[3]
+ll.placedon.opt <- rdrobust(y=data_candidateB$donations,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pdonopt <- ll.placedon.opt$pv[3]
+
+
+### campaign spending (t)
+ll.placespend.5 <- rdrobust(y=data_candidateB$spending,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pspend5 <- ll.placespend.5$pv[3]
+ll.placespend.opt <- rdrobust(y=data_candidateB$spending,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+pspendopt <- ll.placespend.opt$pv[3]
+
+
+### partisanship
+ll.placeparty.5 <- rdrobust(y=data_candidateB$ALPsupport,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)
+pparty5 <- ll.placeparty.5$pv[3]
+ll.placeparty.opt <- rdrobust(y=data_candidateB$ALPsupport,
+           x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)
+ppartyopt <- ll.placeparty.opt$pv[3]
+
+
+#### put into table
+bt <- data.frame(variable = c("Win (t-1)", "Win (t-1)", 
+                              "Vote share (t-1)","Vote share (t-1)",
+                              "Open seat",   "Open seat",
+                              "ALP incumbent","ALP incumbent",
+                              "LIB/NAT incumbent","LIB/NAT incumbent",
+                              "Donations","Donations",
+                              "Spending", "Spending",
+                              "ALP previous terms", "ALP previous terms",
+                              "Turnout","Turnout",
+                              "Partisan Support", "Partisan Support"),
+                 value = c(pw5,pwopt, 
+                           pv5, pvopt, 
+                           popen5, popenopt,
+                           pinc5, pincopt,
+                           pincL5, pincLopt,
+                           pdon5, pdonopt,
+                           pspend5, pspendopt,
+                           pPRE5, pPREopt,
+                           pturn5, pturnopt,
+                           pparty5, ppartyopt),
+                 shape = c(
+                           "5%", "optimal", 
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal",
+                           "5%", "optimal"
+                           ))
+
+bt$variable <- factor(bt$variable, levels=rev(unique(bt$variable)))
+
+
+ggplot(data = bt) +
+  geom_point(aes(x = value, y = variable, shape = shape)) +
+  labs(x = "p-value", y = "Pre-treatment Variables", title = "Party-level: Placebo Tests on Pre-treatment Variables",
+       shape = "Bandwidth")+
+  geom_vline(xintercept = 0.05, lty = 2) +
+  theme_bw()
+
+
+```
+
+
+Placebo plots
+```{r}
+#openseats
+rdplot(data_candidateB$openseat[abs(data_candidateB$margin) <= bandwidthB], data_candidateB$margin[abs(data_candidateB$margin) <= bandwidthB],
+       p = 1, kernel = "triangular",  
+       x.label= "Margin of victory (t)",
+       y.label = "Open seat")
+
+# wIN (t-1)
+rdplot(data_candidateB$Wint_1[abs(data_candidateB$margin) <= bandwidthB], data_candidateB$margin[abs(data_candidateB$margin) <= bandwidthB],
+       p = 1, kernel = "triangular",  
+       x.label= "Margin of victory (t)",
+       y.label = "Pr(Winning next election) t-1")
+
+# Vote share (t-1)
+rdplot(data_candidateB$VPt_1[abs(data_candidateB$margin) <= bandwidthB], data_candidateB$margin[abs(data_candidateB$margin) <= bandwidthB],
+       p = 1, kernel = "triangular",  
+       x.label= "Margin of victory (t)",
+       y.label = "Pr(Winning next election)")
+
+
+# ALP incumbent running
+rdplot(data_candidateB$inc[abs(data_candidateB$margin) <= bandwidthB], 
+       data_candidateB$margin[abs(data_candidateB$margin) <= bandwidthB],
+       p = 1, kernel = "triangular",  
+       x.label= "Margin of victory (t)",
+       y.label = "ALP incumbent")
+
+
+# LIB/NAT incumbent running
+rdplot(data_candidateB$incLIB[abs(data_candidateB$margin) <= bandwidthB], 
+       data_candidateB$margin[abs(data_candidateB$margin) <= bandwidthB],
+       p = 1, kernel = "triangular",  
+       x.label= "Margin of victory (t)",
+       y.label = "LIB/NAT incumbent")
+```
+
+Balance Tests on other electorate covariates ######################################################################
+
+```{r}
+library(eechidna)
+data("abs2001")
+
+
+abs2016$DivisionNm <- tools::toTitleCase(tolower(abs2016$DivisionNm))
+abs2016$DivisionNm[abs2016$DivisionNm == "Mcewen"] <- "McEwen"
+abs2016$DivisionNm[abs2016$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2016$DivisionNm[abs2016$DivisionNm == "Mcmillan"] <- "McMillan"
+abs_2016 <- abs2016 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2016)
+
+
+abs2013$DivisionNm <- tools::toTitleCase(tolower(abs2013$DivisionNm))
+abs2013$DivisionNm[abs2013$DivisionNm == "Mcewen"] <- "McEwen"
+abs2013$DivisionNm[abs2013$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2013$DivisionNm[abs2013$DivisionNm == "Mcmillan"] <- "McMillan"
+abs_2013 <- abs2013 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2013)
+
+abs2010$DivisionNm <- tools::toTitleCase(tolower(abs2010$DivisionNm))
+abs2010$DivisionNm[abs2010$DivisionNm == "Mcewen"] <- "McEwen"
+abs2010$DivisionNm[abs2010$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2010$DivisionNm[abs2010$DivisionNm == "Mcmillan"] <- "McMillan"
+abs2010 <- abs2010 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2010)
+
+
+abs2007$DivisionNm <- tools::toTitleCase(tolower(abs2007$DivisionNm))
+abs2007$DivisionNm[abs2007$DivisionNm == "Mcewen"] <- "McEwen"
+abs2007$DivisionNm[abs2007$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2007$DivisionNm[abs2007$DivisionNm == "Mcmillan"] <- "McMillan"
+abs_2007 <- abs2007 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2007)
+
+
+abs2004$DivisionNm <- tools::toTitleCase(tolower(abs2004$DivisionNm))
+abs2004$DivisionNm[abs2004$DivisionNm == "Mcewen"] <- "McEwen"
+abs2004$DivisionNm[abs2004$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2004$DivisionNm[abs2004$DivisionNm == "Mcmillan"] <- "McMillan"
+abs_2004 <- abs2004 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2004)
+
+abs2001$DivisionNm <- tools::toTitleCase(tolower(abs2001$DivisionNm))
+abs2001$DivisionNm[abs2001$DivisionNm == "Mcewen"] <- "McEwen"
+abs2001$DivisionNm[abs2001$DivisionNm == "Mcpherson"] <- "McPherson"
+abs2001$DivisionNm[abs2001$DivisionNm == "Mcmillan"] <- "McMillan"
+abs_2001 <- abs2001 %>% 
+  select(DivisionNm, Indigenous, MedianHouseholdIncome, SocialServ, Unemployed, HighSchool, BornElsewhere) %>% 
+  mutate(ElecYear = 2001)
+```
+
+
+SENSITIVITY TO BANDWIDTH CHOICE ##################################################################
+
+```{r}
+diff.bw <- c(0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.15)
+
+diff.bw.coef <- vector()
+diff.bw.coef[1] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.01, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[2] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.02, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[3] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.03, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[4] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.04, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[5] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[6] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.1, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.bw.coef[7] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.15, cluster = data_candidateB$DivisionNm)$coef[2]
+
+diff.bw.se.u <- vector()
+diff.bw.se.u[1] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.01, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[2] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.02, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[3] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.03, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[4] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.04, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[5] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[6] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.1, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.bw.se.u[7] <- rdrobust(y=data_candidateB$Wint1, x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.15, cluster = data_candidateB$DivisionNm)$ci[3]
+
+
+diff.bw.se.l <- vector()
+diff.bw.se.l[1] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.01, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[2] <- rdrobust(y=data_candidateB$Wint1,
+                            covs=data_candidateB$inc,
+                            x=data_candidateB$margin,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.02, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[3] <- rdrobust(y=data_candidateB$Wint1,
+                            covs=data_candidateB$inc,x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 1, h = 0.03, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[4] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.04, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[5] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[6] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.1, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.bw.se.l[7] <- rdrobust(y=data_candidateB$Wint1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.15, cluster = data_candidateB$DivisionNm)$ci[6]
+
+diff.bw.data <- data.frame(Bandwidth = diff.bw, 
+                           Coefficient = diff.bw.coef, 
+                           CIU = diff.bw.se.u, 
+                           CIL = diff.bw.se.l)
+```
+
+plot it
+```{r}
+
+ggplot(data= diff.bw.data, aes(x = Bandwidth, y= Coefficient)) +
+  geom_point() +
+  geom_errorbar(ymin=diff.bw.data$CIL, ymax=diff.bw.data$CIU, width = 0.001) +
+  scale_y_continuous(limits = c(-2, 2)) +
+  geom_hline(yintercept = 0, lty = 2, col = "red") +
+  labs(x = "Bandwidth", y = "RD Estimate (Pr(Winning))", title = "Party-level: RD Estimates with Different Bandwidths") +
+  theme_bw()
+```
+
+
+
+```{r}
+
+summary(rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 5, cluster = data_candidateB$DivisionNm))
+```
+
+
+
+
+SENSITIVITY TO POLYNOMIAL CHOICE ##################################################################
+```{r}
+diff.ply <- c(1, 2, 3, 4, 5, 6)
+
+diff.ply.coef <- vector()
+diff.ply.coef[1] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.ply.coef[2] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 2, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.ply.coef[3] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 2, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.ply.coef[4] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 4, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.ply.coef[5] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 5, cluster = data_candidateB$DivisionNm)$coef[2]
+diff.ply.coef[6] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 6, cluster = data_candidateB$DivisionNm)$coef[2]
+
+
+diff.ply.se.u <- vector()
+diff.ply.se.u[1] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1,  cluster = data_candidateB$DivisionNm)$ci[3]
+diff.ply.se.u[2] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 2,  cluster = data_candidateB$DivisionNm)$ci[3]
+diff.ply.se.u[3] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 3,cluster = data_candidateB$DivisionNm)$ci[3]
+diff.ply.se.u[4] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 4, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.ply.se.u[5] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 5, cluster = data_candidateB$DivisionNm)$ci[3]
+diff.ply.se.u[6] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 6,cluster = data_candidateB$DivisionNm)$ci[3]
+
+
+diff.ply.se.l <- vector()
+diff.ply.se.l[1] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1,  cluster = data_candidateB$DivisionNm)$ci[6]
+diff.ply.se.l[2] <- rdrobust(y=data_candidateB$VPt1,
+                            covs=data_candidateB$inc,
+                            x=data_candidateB$margin,
+                            kernel = "triangular",
+           c=0, p = 2, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.ply.se.l[3] <- rdrobust(y=data_candidateB$VPt1,
+                            covs=data_candidateB$inc,x=data_candidateB$margin,kernel = "triangular",
+           c=0, p = 3, cluster = data_candidateB$DivisionNm)$ci[6]
+diff.ply.se.l[4] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 4,  cluster = data_candidateB$DivisionNm)$ci[6]
+diff.ply.se.l[5] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = ,  cluster = data_candidateB$DivisionNm)$ci[6]
+diff.ply.se.l[6] <- rdrobust(y=data_candidateB$VPt1,
+                            x=data_candidateB$margin,
+                            covs=data_candidateB$inc,
+                            kernel = "triangular",
+           c=0, p = 1, h = 0.1, cluster = data_candidateB$DivisionNm)$ci[6]
+
+diff.ply.data <- data.frame(Bandwidth = diff.ply, 
+                           Coefficient = diff.ply.coef, 
+                           CIU = diff.ply.se.u, 
+                           CIL = diff.ply.se.l)
+```
+
+
+plot it
+```{r}
+ggplot(data= diff.ply.data, aes(x = Bandwidth, y= Coefficient)) +
+  geom_point() +
+  geom_errorbar(ymin=diff.ply.data$CIL, ymax=diff.ply.data$CIU, width = 0.1) +
+  scale_y_continuous(limits = c(-0.15, .15)) +
+  geom_hline(yintercept = 0, lty = 2, col = "red") +
+  labs(x = "Polynomial Order", y = "RD Estimate, Vote Share (t+1)", title = "Party-level: RD Estimates Varying Order of Polynomial") +
+  theme_bw()
+```
+
+DESCRIPTIVES ##################################################################
+
+Correlation
+```{r}
+library(corrplot)
+
+# reduced df
+red <- data_candidateB %>% dplyr::select(margin, Wint1, VPt1, inc, incLIB, openseat, 
+         Prev_TermsALP, Prev_TermsLIB, ALPsupport,
+         spending, donations) %>% 
+  data.frame() %>% 
+  na.omit() 
+red <- red[,-1]
+
+cordata <- cor(red)
+
+# change column and row names
+rownames(cordata) <- c("Margin", "Win", "Vote Share", 
+                       "Incumbent ALP", "Incumbent LIB/NAT", "Open Seat", 
+                       "# Prev Terms", "# Prev Terms Opp", "Partisan Support",
+                       "Spending", "Donations")
+colnames(cordata) <- c("Margin", "Win", "Vote Share", 
+                       "Incumbent ALP", "Incumbent LIB/NAT", "Open Seat", 
+                       "# Prev Terms", "# Prev Terms Opp", "Partisan Support",
+                       "Spending", "Donations")
+
+# significance test with 95% confidence intervals
+res <- cor.mtest(red, conf.level = .95)
+
+corrplot(cordata, #p.mat = res$p,
+#          insig = "label_sig",
+#          pch.cex = .9, pch.col = "white",
+         
+         addCoef.col = "black",
+         sig.level = c(.001, .01, .05),
+         type = "lower",
+         tl.col = "black",
+         tl.srt = 45,
+         method = "square",
+         title = "",
+         number.cex = .6)
+
+```
+
+
+
+Decline in party attachment over time
+```{r}
+
+```
+
+
+
+```{r}
+# government change in power over time?
+
+# reelection - What's the re-election rate of elected representatives in Australia?
+
+# length of service 
+
+
+# total nubmer of candidates?
+```
+
+
+
+
+
+
+
+
+
+
+
+

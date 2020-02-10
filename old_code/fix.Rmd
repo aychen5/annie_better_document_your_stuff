@@ -1,0 +1,315 @@
+---
+title: "fix"
+author: "Annie"
+date: "5/9/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+### Candidate is incumbent Coalition = 499
+### wins when incumbent is LIB/NAT = 449
+# RATIO = 449/499
+## 90%
+
+### Candidate is ALP incumbent = 373
+### wins when incumbent is ALP = 345
+# RATIO = 345/373
+## 92%
+```
+
+
+
+Entropy Balancing (Party-level)
+```{r}
+library(ebal)
+eb_targeted_p <- ebalance(Treatment = data_candidateB$win, 
+         X = c(data_candidateB$inc))
+eb_targeted_p
+
+
+
+eb_targeted_out_p <- data.frame(cbind(eb_targeted_p$co.xdata, eb_targeted_p$w)) %>%
+  mutate(new_id = "inc_bal")
+
+ebdata_p <- data_candidateB %>% 
+  mutate(new_id = "inc_bal") %>% 
+  left_join(eb_targeted_out_p, by = "new_id") %>% 
+  dplyr::select(everything(), eb_targeted_weight = 31)
+
+
+ebdata_p$eb_targeted_weight[is.na(ebdata_p$eb_targeted_weight)] <- 1
+
+# treated means
+treat_means_eb_p <- mean(ebdata_p$inc[ebdata_p$win == 1])
+
+
+# eb weight control means
+weighted_means_eb_control_p <- weighted.mean(ebdata_p$inc[ebdata_p$win == 0],
+                ebdata_p$eb_targeted_weight[ebdata_p$win == 0], na.rm = TRUE)
+
+# raw control means
+raw_means_eb_control_p <- mean(ebdata_p$inc[ebdata_p$win == 0])
+
+
+kable(data.frame(Variable = "Incumbent Run",
+                 Treated = treat_means_eb_p, 
+                 EB_Weighted = weighted_means_eb_control_p, 
+                 Raw_Control = raw_means_eb_control_p)) %>% kable_styling()
+ebdata_p
+```
+
+
+```{r}
+
+par(mfrow = c(2, 1))
+
+#before EB weights
+before_EB <- weights::wtd.hist(x = dplyr::filter(ebdata_p, inc == 1 & margin <0.2 & margin > -0.2)$margin, 
+                  freq = FALSE,
+                  breaks = 20,
+                  xlim = range(-0.2, 0.2), 
+                  ylim = c(0, 6), 
+                  main = "Incumbent Imbalance Before Entropy Balancing",
+                  xlab = "Incumbent Margin of Victory",
+                  col="lightblue")
+abline(v = 0, col = "red", lty = 2, lwd = 3)
+
+
+
+#after EB weights
+after_EB <- weights::wtd.hist(x = dplyr::filter(ebdata_p, inc == 1 & margin <0.2 & margin > -0.2)$margin, 
+                  freq = FALSE,
+                  weight = dplyr::filter(ebdata_p, inc == 1 & margin <0.2 & margin > -0.2)$eb_targeted_weight,
+                  breaks = 20, 
+                  xlim = range(-0.2, 0.2), 
+                  ylim = c(0, 6), 
+                  main = "Incumbent Imbalance After Entropy Balancing",
+                  xlab = "Incumbent Margin of Victory",
+                  col="lightblue")
+abline(v = 0, col = "red", lty = 2, lwd = 3)
+
+```
+
+
+
+Run new models
+```{r}
+eb_wmodel_p <- rdrobust(y=ebdata_p$Wint1,
+           x=ebdata_p$margin,
+           weights = ebdata_p$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata_p$DivisionNm)
+
+eb_vmodel_p <- rdrobust(y=ebdata_p$VPt1,
+           x=ebdata_p$margin,
+           weights = ebdata_p$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata_p$DivisionNm)
+
+summary(eb_wmodel_p)
+summary(eb_vmodel_p)
+
+ebcoef_p<- vector()
+ebcoef_p[1] <- eb_wmodel_p$coef[2]
+ebcoef_p[2] <- eb_vmodel_p$coef[2]
+ebse_p <- vector()
+ebse_p[1] <- eb_wmodel_p$se[3]
+ebse_p[2] <-eb_vmodel_p$se[3]
+
+
+
+h <- as.data.frame(matrix(rnorm(10 * 4), nc = 4))
+names(h) <- c("win", "margin")
+eb_wmodel_p_ <- lm(win ~ margin, data =h)
+eb_vmodel_p_ <- lm(win ~ margin, data =h)
+
+
+##### TABLE
+stargazer(eb_wmodel_p_, eb_vmodel_p_,
+          type = "text",
+  coef = c(ebcoef_p),
+  se = c(ebse_p),
+  covariate.labels = c("", "Margin of Victory"),
+  column.labels = c("Pr(Winning)", "Vote Share"),
+  dep.var.labels = c(""),
+  add.lines = list(c("Bandwidth","opt (5%)","opt (7%)")))
+
+```
+
+###########################################################
+Entropy Balancing (Candidate-level)
+```{r}
+library(ebal)
+
+candidate_dataC_BAL<- filter(candidate_dataC, margin <0.05 & margin > -0.05)
+
+eb_targeted <- ebalance(Treatment = candidate_dataC$win, 
+         X = candidate_dataC$incLIB)
+eb_targeted
+
+
+
+eb_targeted_out <- data.frame(cbind(eb_targeted$co.xdata, eb_targeted$w)) %>%
+  mutate(new_id = "inc_bal")
+
+ebdata <- candidate_dataC %>% 
+  mutate(new_id = "inc_bal") %>% 
+  left_join(eb_targeted_out, by = "new_id") %>% 
+  dplyr::select(everything(), eb_targeted_weight = 45)
+
+
+sum(ebdata$eb_targeted_weight[is.na(ebdata$eb_targeted_weight)==1])
+
+# treated means
+treat_means_eb <- round(mean(ebdata$incLIB[ebdata$win == 1]),2)
+
+# eb weight control means
+weighted_means_eb_control <- round(weighted.mean(ebdata$incLIB[ebdata$win == 0],
+                ebdata$eb_targeted_weight[ebdata$win == 0]),2)
+
+# raw control means
+raw_means_eb_control <- round(mean(ebdata$incLIB[ebdata$win == 0]),2)
+
+
+kable(data.frame(Variable = c("Incumbent Run"),
+                 Treated = treat_means_eb, 
+                 EB_Weighted = weighted_means_eb_control, 
+                 Raw_Control = raw_means_eb_control), "latex") %>% kable_styling()
+```
+
+
+
+check new balance
+```{r}
+
+install.packages("weights")
+library(weights)
+
+par(mfrow = c(2, 1))
+
+#before EB weights
+before_EB <- weights::wtd.hist(x = dplyr::filter(candidate_dataC, incLIB == 1 & margin <0.2 & margin > -0.2)$margin, 
+                  freq = TRUE,
+                  breaks = 20,
+                  xlim = range(-0.2, 0.2),
+                  ylim = range(0, 40),
+                  main = "Incumbent Imbalance Around Cutoff",
+                  xlab = "Incumbent Margin of Victory \n Each bin = 0.02%",
+                  col="lightblue")
+abline(v = 0, col = "red", lty = 2, lwd = 3)
+
+
+
+#after EB weights
+after_EB <- weights::wtd.hist(x = dplyr::filter(ebdata, incLIB == 1 & margin <0.2 & margin > -0.2)$margin, 
+                  freq = FALSE,
+                  weight = dplyr::filter(ebdata, incLIB == 1 & margin <0.2 & margin > -0.2)$eb_targeted_weight,
+                  breaks = 20, 
+                  xlim = range(-0.2, 0.2), 
+                  ylim = c(0, 6), 
+                  main = "Incumbent Imbalance After Entropy Balancing",
+                  xlab = "Incumbent Margin of Victory",
+                  col="lightblue")
+abline(v = 0, col = "red", lty = 2, lwd = 3)
+
+```
+
+
+Run new models
+```{r}
+eb_wmodel <- rdrobust(y=ebdata$wint1,
+           x=ebdata$margin,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata$DivisionNm)
+eb_wmodel_c <- rdrobust(y=ebdata$wint1,
+           x=ebdata$margin,
+           covs = ebdata$inc,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata$DivisionNm)
+eb_wmodel_c5 <- rdrobust(y=ebdata$wint1,
+           x=ebdata$margin,
+           covs = ebdata$inc,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = ebdata$DivisionNm)
+
+eb_vmodel <- rdrobust(y=ebdata$vpt1,
+           x=ebdata$margin,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata$DivisionNm)
+eb_vmodel_c <- rdrobust(y=ebdata$vpt1,
+           x=ebdata$margin,
+           covs = ebdata$inc,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, cluster = ebdata$DivisionNm)
+eb_vmodel_c5 <- rdrobust(y=ebdata$vpt1,
+           x=ebdata$margin,
+           covs = ebdata$inc,
+           weights = ebdata$eb_targeted_weight,
+           kernel = "triangular",
+           c=0, p = 1, h = 0.05, cluster = ebdata$DivisionNm)
+
+summary(eb_vmodel_c5)
+
+ebcoef<- vector()
+ebcoef[1] <- eb_wmodel_c5$coef[2]
+ebcoef[2] <- eb_wmodel_c$coef[2]
+ebcoef[3] <- eb_vmodel_c5$coef[2]
+ebcoef[4] <- eb_vmodel$coef[2]
+ebse <- vector()
+ebse[1] <- eb_wmodel_c5$se[3]
+ebse[2] <- eb_wmodel_c$se[3]
+ebse[3] <-eb_vmodel_c5$se[3]
+ebse[4] <-eb_vmodel$se[3]
+
+
+g <- as.data.frame(matrix(rnorm(10 * 4), nc = 4))
+names(g) <- c("win", "margin")
+eb_wmodel_ <- lm(win ~ margin, data =g)
+eb_wmodel_c_ <- lm(win ~ margin, data =g)
+eb_vmodel_ <- lm(win ~ margin, data =g)
+eb_vmodel_c_ <- lm(win ~ margin, data =g)
+
+##### TABLE
+stargazer(eb_wmodel_, eb_wmodel_c_, eb_vmodel_c_, eb_vmodel_,
+          type = "latex",
+  coef = c(ebcoef),
+  se = c(ebse),
+  covariate.labels = c("", "Margin of Victory"),
+  column.labels = c("Pr(Winning)", "Vote Share"),
+  column.separate = c(2, 1),
+  dep.var.labels = c(""),
+  add.lines = list(c("Bandwidth","5%", "opt (14%)","5%", "opt (7%)")))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
