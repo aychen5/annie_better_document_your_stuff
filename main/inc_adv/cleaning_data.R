@@ -1,5 +1,9 @@
 library(tidyverse)
 
+#####################################################
+####### Cleaning data [input raw data] #########
+#####################################################
+
 path <- "~/Dropbox/Thesis/inc_adv/data/federal"
 
 #----------  a function to import multiple csvs at once ----------# 
