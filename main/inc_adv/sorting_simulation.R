@@ -1,9 +1,9 @@
 rm(list=ls())
 library(dplyr)
 library(ggplot2)
-library(parallel)
-library(foreach)
-library(doParallel)
+# library(parallel)
+# library(foreach)
+# library(doParallel)
 
 #####################################################
 ####### Model of pre-electoral manipulation #########
@@ -12,6 +12,7 @@ library(doParallel)
 ### This simulation is based on the one by Eggers et al.
 ### (2013) for imbalance in the US House. See their Appendix C.
 ### I've adapted the Stata script for Australian elections.
+### Takes a while (esp if num_obs > 1e4). Best to use multiple cores.
 
 ## inc vote share = signal + error + ( k * secret weapon )
 # signal ~ N(0.62, 0.15^2)
@@ -41,68 +42,67 @@ library(doParallel)
 # inc vote share = signal + error + ( k * 1{Pi} )
 
 # define possible ranges
-sim_range <- expand.grid(epsilon = seq(from = 0.001, to = 0.05, by = 0.0001), 
-                         kappa = seq(from = 0.001, to = 0.05, by = 0.001), 
-                         alpha = seq(from = 0.01, to = 0.99, by = 0.01))
+sim_range <- expand.grid(epsilon = seq(from = 1e-3, to = 0.05, by = 1e-4), 
+                         kappa = seq(from = 1e-3, to = 0.05, by = 1e-3), 
+                         alpha = seq(from = 1e-2, to = 0.99, by = 1e-2))
 
 # number of simulated values per arrangement of epsilon, kappa, and alpha
-num_obs <- 1e6
+num_obs <- 1e5
 
 # somewhere to store values
-imbalances <- matrix(0L, nrow = num_obs, ncol = 4, 
-                     dimnames = list(NULL, c("ratio","epsilon","kappa","alpha")))
+imbalances <- matrix(0L, nrow = num_obs, ncol = 5, 
+                     dimnames = list(NULL, c("ratio","epsilon","kappa","alpha","error")))
 
-imbal_fxn <- function (epsilon, kappa, alpha) {
+# create a progress bar -- not working
+# same with txtProgressBar :(
+# pb <- tkProgressBar("Simulation Progress", "Simulating...",
+#                     0, 100, initial = 0)
+
+set.seed(532020)
+for (i in 1:nrow(sim_range)) {
   
   # the distribution of incumbent vote share in Australia
-  signal <- rnorm(num_obs, 0.62, 0.15^2)
-  error <- rnorm(num_obs, 0, epsilon)
+  signal <- rnorm(num_obs, 0.58, 0.067)
+  error <- rnorm(num_obs, 0, sim_range$epsilon[i])
   
   # the difference in mobilizing/not mobilizing weapon as defined above
-  secret_weapon <- (pnorm( (kappa + signal - 0.5) / epsilon) - 
-                      pnorm( (signal - 0.5) / epsilon)) > alpha
+  secret_weapon <- (pnorm( (sim_range$kappa[i] + signal - 0.5) / sim_range$epsilon[i]) - 
+                      pnorm( (signal - 0.5) / sim_range$epsilon[i])) > sim_range$alpha[i]
   
   # calculate the incumbent vote share
-  vote_share <- signal + error + ( kappa * secret_weapon )
+  vote_share <- signal + error + ( sim_range$kappa[i] * secret_weapon )
   
   # those that barely win and those that barely lose
   winning <- sum(vote_share > 0.5 & vote_share < 0.5025)
   losing <- sum(vote_share < 0.5 & vote_share > 0.4975)
   
-  ratio <- winning/losing 
-  return(ratio)
-}
-
-set.seed(532020)
-for (i in 1:nrow(sim_range)) {
-  e <- sim_range$epsilon[i]
-  k <- sim_range$kappa[i]
-  a <- sim_range$alpha[i]
-
-  imbalances[i, 1] <- imbal_fxn(e, k, a)
+  imbalances[i, 1] <- winning/losing 
   
-  if (!is.nan(imbalances[i, 1])) {
-    imbalances[i, 2] <- e
-    imbalances[i, 3] <- k
-    imbalances[i, 4] <- a
+  if (!is.nan(imbalances[i, 1]) & !is.infinite(imbalances[i, 1])) {
+    imbalances[i, 2] <- sim_range$epsilon[i]
+    imbalances[i, 3] <- sim_range$kappa[i]
+    imbalances[i, 4] <- sim_range$alpha[i]
+    imbalances[i, 5] <- mean(error, na.rm = T)
   }
+  # Sys.sleep(1)
+  # setTkProgressBar(pb, i)
 }
- 
-## The imbalance seen in the data for all races won/lost 
-## between 49.75 and 50.25 percent is 30:11. The odds the incumbent
-## party fell into the winning bin (> 50) is 2.73 greater
-## than marginally losing.
+# close(pb)
 
-### Largest values of epsilon that produce this imbalance is 0.022
+### Largest values of epsilon that produce imbalance of 2.73 is 0.022
 max(imbalances[imbalances[,1] >= 2.73, 2], na.rm = TRUE)
 
 
 ### plot epsilon against imbalance
 as.data.frame(imbalances) %>% 
-  ggplot(aes(x = ratio, y = epsilon)) +
+  ggplot(aes(x = abs(error), y = ratio)) +
   geom_point(alpha = 0.3) +
   #geom_smooth() +
   theme_minimal()
+
+# See that as imbalance grows, precision of signal error also increases.
+# Don't we expect being better able to predict vote share to mean greater imbalance??
+
 
 #####################################################
 ########## run in parallel to speed it up ###########
@@ -127,8 +127,6 @@ tmp <- foreach(i=1:nrow(sim_range), .combine = 'c') %dopar% {
 
 # stop clustering after sim
 stopCluster(cl)
-
-
 
 
 
