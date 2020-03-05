@@ -21,7 +21,8 @@ Documents for replicability.
 │       ├── clean_data.R
 │       └── sorting_simulation.R
 ├── /scripts\
-│   ├── misc code (e.g. for scraping)
+│   ├── contains: misc code (e.g. for scraping)
+│       └── txt_scraper.py 
 ├── /extra
 │   ├── /campaign_finance
 .    
