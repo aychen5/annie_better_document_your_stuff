@@ -89,19 +89,27 @@ for (i in 1:nrow(sim_range)) {
 }
 # close(pb)
 
-### Largest values of epsilon that produce imbalance of 2.73 is 0.022
+### Largest values of epsilon that produce imbalance of 2.73 is 0.0011
 max(imbalances[imbalances[,1] >= 2.73, 2], na.rm = TRUE)
 
 
-### plot epsilon against imbalance
+as.data.frame(imbalances) %>% 
+  filter(ratio >= 2.73)%>% 
+  arrange(desc(epsilon))
+
+
+### plot error against imbalance
 as.data.frame(imbalances) %>% 
   ggplot(aes(x = abs(error), y = ratio)) +
-  geom_point(alpha = 0.3) +
+  geom_point(alpha = 0.2) +
+  geom_point(inherit.aes = FALSE, aes(y = 2.73, x = 2.390450e-06), 
+             col = "red", shape = 2) +
+  labs(x = "| Error |", y = "Win/Loss Imbalance for Incumbents in Close Races",
+      title = "Simulated Level of Precision Producing\n Imbalances in Close Australian Elections") + 
   #geom_smooth() +
-  theme_minimal()
-
-# See that as imbalance grows, precision of signal error also increases.
-# Don't we expect being better able to predict vote share to mean greater imbalance??
+  #geom_vline(xintercept = 2.390450e-06, col = "red", lty = 2) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 #####################################################
