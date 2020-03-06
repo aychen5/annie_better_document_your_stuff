@@ -1,7 +1,7 @@
 ### Description
-Documents for replicability.
+Documents for replicability (and so I can recover things I accidentally delete =/ᐠ｡‸｡ᐟ\\=∫).
 
-### Structure
+### Organization
 
 <pre>
 . 
