@@ -17,14 +17,16 @@ Documents for replicability (and so I can recover things I accidentally delete =
 │           └── /year
 │   └── /local
 │           └── /year
-├── /main
+├── /main_analysis
 │   ├── /inc_adv 
 │   └── contains: .Rproject, scripts for cleaning and general analysis
 │       ├── clean_data.R
 │       └── sorting_simulation.R
-├── /scripts\
+├── /other_scripts
 │   ├── contains: misc code (e.g. for scraping)
 │       └── txt_scraper.py 
+│       └── /bounds
+│           └── rdbound.ado
 ├── /extra
 │   ├── /campaign_finance
 │   └── /old_code
