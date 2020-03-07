@@ -15,6 +15,8 @@ Documents for replicability (and so I can recover things I accidentally delete =
 │           └── /year
 │   └── /state
 │           └── /year
+│   └── /local
+│           └── /year
 ├── /main
 │   ├── /inc_adv 
 │   └── contains: .Rproject, scripts for cleaning and general analysis
@@ -25,6 +27,9 @@ Documents for replicability (and so I can recover things I accidentally delete =
 │       └── txt_scraper.py 
 ├── /extra
 │   ├── /campaign_finance
+│   └── /old_code
+│       └── fix.Rmd
+│       └── tests.Rmd
 .    
 </pre>
 
