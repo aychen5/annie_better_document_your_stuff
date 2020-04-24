@@ -5,6 +5,8 @@ library(tidyverse)
 #####################################################
 
 path <- "~/Dropbox/Thesis/inc_adv/data/federal"
+# all years in directory
+#list.files(paste0(path, "/lower"))
 
 #----------  a function to import multiple csvs at once ----------# 
 readin_files <- function (files, house, year) {
@@ -32,7 +34,7 @@ tpp_fxn <- function(house, year) {
   # clean up a bit
   tpp_federal_year <- tpp %>% 
     # this only gives me two decimal places
-    mutate(alp_margin = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
+    mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
            alp_vs = `Australian Labor Party Percentage`,
            division = DivisionNm,
            year = year)
@@ -41,56 +43,87 @@ tpp_fxn <- function(house, year) {
 }
 
 #---------- now loop over all the years I have ----------# 
-years <- seq(2001, 2019, by = 3)
+years <- seq(2004, 2019, by = 3)
 tpps <- list()
 for (i in seq_along(years)){
   tpps[[i]] <- tpp_fxn("lower", years[i])
 }
-#tpp_federal_2019 <- tpp_fxn("lower", 2019)
-#tpp_federal_2016 <- tpp_fxn("lower", 2016)
+# rename list of dfs
+names(tpps) <- paste0("tpp_federal_", years)
 
 #----------  check that divisions are stable ----------# 
 # divisions that were eliminated/redistributed or renamed?
-stopifnot(is_empty(setdiff(tpp_federal_2019$division, tpp_federal_2016$division))| 
-          is_empty(setdiff(tpp_federal_2016$division, tpp_federal_2019$division)))
+stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpp_federal_2016$division))| 
+          is_empty(setdiff( tpps$tpp_federal_2016$division, tpps$tpp_federal_2019$division)))
 
-# for now, get rid of them...(return to this later)
-both <- intersect(tpp_federal_2019$division, tpp_federal_2016$division)
+# for now, get rid of them...
+# (return to this later for better treatment of redistricting)
+
+# create a function that spits out only observations from matching districts
+samedist_fxn <- function (year_after, year_before) {
+  both <- intersect(year_after$division, year_before$division)
+  
+  out <- year_after %>% 
+    # only divisions common to both years
+    filter(division %in% both) %>% 
+    bind_rows(filter(year_before, division %in% both))
+  
+  return(out)
+}
+
+# put all the data together
+filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) %>% 
+  bind_rows(samedist_fxn(tpps$tpp_federal_2016, tpps$tpp_federal_2013)) %>% 
+  bind_rows(samedist_fxn(tpps$tpp_federal_2013, tpps$tpp_federal_2010))%>% 
+  bind_rows(samedist_fxn(tpps$tpp_federal_2010, tpps$tpp_federal_2007))%>% 
+  bind_rows(samedist_fxn(tpps$tpp_federal_2007, tpps$tpp_federal_2004)) %>% 
+  # remove duplicate years
+  distinct()
 
 #----------  create new variables ----------# 
-all_data <- tpp_federal_2019 %>% 
-  # only divisions common to both years
-  filter(division %in% both) %>% 
-  bind_rows(filter(tpp_federal_2016, division %in% both)) %>% 
-  # create win variable
-  mutate(alp_win_t = case_when(alp_margin > 0 & year == 2016 ~ 1))%>% 
+
+all_data <- filtered_data %>% 
+  # this is variable for win in current year
+  mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0))%>% 
   # add incumbency variable
   arrange(division) %>% 
   group_by(division) %>% 
-  mutate(incumbent = na_if(dplyr::lead(alp_win_t, default = 0), 0),
-         alp_win_t1 = case_when(alp_margin > 0 & year == 2019 ~ 1))
+  mutate(
+    # variable for win in previous election t-1
+    alp_win_t0 = dplyr::lag(alp_win_t, default = 0),
+    # variable for win in next year t+1
+    alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
+    # variable for margin of victory in previous election t-1
+    alp_margin_t0 = dplyr::lag(alp_margin_t, default = NA),
+    # variable for margin of victory in next year t+1
+    alp_margin_t1 = dplyr::lead(alp_margin_t, default = NA),
+    # variable for incumbent status in current election
+    incumbent = dplyr::lead(alp_win_t, default = 0)
+    )
 
 
-#glimpse(all_data)
+# I just realized that there's a truncation/censorship problem here?!
+# We never account for entry and exit into study...is this a problem for 
+# other RDD incumbency studies?
+# So, if we have data for years = {2013, 2016, 2019}, we are estimating effect of
+# 2013-2016 and 2016-2019, but 2010-2013 and 2019-2022 is truncated?
+# If the process that generates the margin of victory in 2013 is not random, 
+# is this a concern? 
 
 
-### begin to check imbalance
 
-#66
-table(all_data$incumbent)
-#61
-all_data %>% 
-  filter(incumbent == 1 & alp_win_t1 == 1) %>% 
-  nrow()
 
-ggplot(all_data[all_data$incumbent == 1,]) +
-  geom_density(aes(alp_vs)) +
-  geom_vline(xintercept = mean(all_data[all_data$incumbent == 1,]$alp_vs, na.rm = T), 
-             lty = 2, col = "red", lwd = 1.5) + 
-  theme_minimal()
 
-#mean
-57.98788/100
-#sd
-6.695208/100
+
+
+
+
+
+
+
+
+
+
+
+
 
