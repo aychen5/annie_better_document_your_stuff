@@ -17,6 +17,8 @@ Documents for replicability (and so I can recover things I accidentally delete =
 │           └── /year
 │   └── /local
 │           └── /year
+├── /clean_data (in Dropbox)
+│   ├── tpp_data.csv
 ├── /main_analysis
 │   ├── /inc_adv 
 │   └── contains: .Rproject, scripts for cleaning and general analysis
