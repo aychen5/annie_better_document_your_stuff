@@ -1,0 +1,69 @@
+---
+title: "Australian Election Study"
+author: "Annie Chen"
+date: "4/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, haven)
+```
+
+AES contains both Voter studies as well as Candidate studies
+
+What can we learn from these surveys?
+
+```{r}
+#Australian Election Study, 1987-2016 Trends
+path <- "~/Dropbox/Thesis/inc_adv/data"
+statadata <- function(file_name) {
+  read_dta(paste0(path, "/surveys/", file_name))
+}
+
+# all files in this folder 
+all_year <- list.files(file.path(path, "/surveys"), pattern = ".dta")
+  
+# read in all the data
+data <- list()
+data <- sapply(X = all_year, FUN = statadata)
+  
+# remove .csv from names
+names(data) <- sapply(1:length(all_year), 
+                      function (x) str_split(all_year, pattern = "\\.")[[x]][1])
+
+```
+
+
+Party identification:
+
+1 -- Liberal 
+2 -- Australian Labor Party
+3 -- National Party of Australia
+```{r}
+glimpse(data$AES_2001) 
+glimpse(data$AES_2016) 
+
+function(x){
+ mean(x, na.rm = TRUE)
+}
+table(data$AES_2001$B1)[2]
+table(data$AES_2004$b1)[2]
+
+pid <- data.frame(
+  data$AES_2001$B1,
+  # 8 = no party
+  data$AES_2004$b1,
+  # 8 = no party
+  data$AES_2007$b1,
+  # 6 = no party
+  data$AES_2010$b1,
+  # 6 = no party
+  data$AES_2013$b1,
+  # 6 = no party
+  data$AES_2016$B1
+) # 6 = no party
+
+ggplot()
+```
+

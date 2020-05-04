@@ -3,10 +3,298 @@ title: "Bayesian Incumbency Advantage"
 author: "Annie Chen"
 date: "4/24/2020"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-pacman::p_load(brms, tidyverse)
+
+# packages
+pacman::p_load(brms, broom, tidyverse, modelr, tidybayes, bayesplot)
+
+# ggplot theme
+theme_set(theme_minimal())
 ```
+
+<style type="text/css">
+<!-- some custom styling -->
+body{ /* Normal  */
+      font-size: 14px;
+  }
+td {  /* Table  */
+  font-size: 10px;
+}
+h1.title {
+  font-size: 42px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 32px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+  font-size: 26px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 22px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 14px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+# Data
+
+```{r}
+tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
+
+tpp_data <- tpp_data %>% 
+  group_by(division) %>% 
+  mutate(# number of "trials" per division
+         total_years = n(), 
+         # rescale incumbent predictor
+         incumbent = if_else(incumbent == 1, 1, -1))
+```
+
+
+```{r}
+get_prior(alp_win_t1 ~ 1 + incumbent + (1 + incumbent||division),  
+          data = tpp_data, 
+          # this is the response distribution and link function
+          family = binomial())
+```
+
+
+# Theoretical Model (DGP)
+
+The outcome is a binary variable for whether an electorate votes for the ALP.
+
+$$y_i \sim Binomial(n_i, p_i)$$
+The probability of voting for ALP ($p$) varies by electorate $i$, varying intercept ($\alpha$) and varying slope ($\beta$), where the slope is the effect of incumbent status. The intercept is just the mean value of $p$ in each electorate:
+
+$$logit(p_i) = \alpha_{electorate_{[i]}} + \beta_{electorate_{[i]}} Incumbent$$
+
+Each parameter varies by researcher with a joint distribution of outcome from a Multivariate Normal, allowing to estimate the correlation between intercept and slope:
+$$\begin{bmatrix}
+\alpha_{researcher}\\ 
+\beta_{researcher}\\ 
+\end{bmatrix}
+\sim 
+MultvariateNormal\Big( 
+\begin{bmatrix}
+\alpha\\ 
+\beta\\ 
+\end{bmatrix}, \mathbf{S} 
+\Big)$$
+
+The prior means for the intercept and slope are weak (?), Normal centered at 0 and 10 variance. Better do prior predictive checks to make sure they are sensible:
+
+```{r}
+y <- tpp_data$alp_win_t1
+yrep <- replicate(500, sample(x = y, size = length(y)))
+brms::pp_check(y, yrep[1:50,], fun = ppc_dens_overlay)
+
+x <- list(y = rnorm(50, 0, 10), yrep = matrix(rnorm(5000, 0, 10), nrow = 100, ncol = 50))
+class(x) <- "foo"
+pp_check.foo <- function(object, ..., type = c("multiple", "overlaid")) {
+  y <- object[["y"]]
+  yrep <- object[["yrep"]]
+  switch(match.arg(type),
+         multiple = ppc_hist(y, yrep[1:min(8, nrow(yrep)),, drop = FALSE]),
+         overlaid = ppc_dens_overlay(y, yrep))
+}
+pp_check(x)
+pp_check(x, type = "overlaid")
+```
+
+
+
+$$\alpha \sim Normal(0, 10)\\
+\beta \sim Normal(0, 10)$$
+
+Then, specify covariance structure of the joint distribution:
+$$\mathbf{S} = 
+\begin{pmatrix}
+\sigma_{\alpha} & 0\\ 
+0 & \sigma_{\beta}\\ 
+\end{pmatrix} 
+\mathbf{R}
+\begin{pmatrix}
+\sigma_{\alpha} & 0\\ 
+0 & \sigma_{\beta}\\ 
+\end{pmatrix}$$
+
+In the covariance matrices, need specify the variances $\sigma$ as well.
+
+$$(\sigma_{\alpha}, \sigma_{\beta}) \sim HalfCauchy(0, 10)\\
+\mathbf{R} \sim LKJcorr(2)$$
+
+# Estimation
+
+### priors
+```{r}
+my_priors <- c(
+    prior(normal(0, 10), class = Intercept, coef = ""),
+    prior(cauchy(0, 10), class = sd),
+    # prior for incumbency is 0.5 = no effect?
+    prior(normal(0, 10), class = b),
+    prior(lkj(2), class = cor)
+    )
+```
+
+
+### model
+```{r}
+model2 <- brm(
+  # double pipe if don't want to model correlation between intercept and slope
+  # alp_win_t1 is if win in next year (number of successes)
+  # total_years is number of years in each division (total number of trials)
+    alp_win_t1 | trials(total_years) ~ 1 + incumbent + (1 + incumbent|division), 
+    family = binomial(link = "logit"),
+    # prior from previous fxn
+    prior = my_priors,
+    data = tpp_data,
+    sample_prior = TRUE,
+    # only 2 chains for speed, add more later
+    chains = 2,
+    # toss first 2000 in chain
+    warmup = 2000, 
+    # 10,000 iterations per chain
+    iter = 1e4,
+    # use all cores
+    cores = parallel::detectCores(),
+    # adjusting the delta step size (0.8 by default)
+    control = list(adapt_delta = 0.95)
+    )
+```
+
+# Analysis
+
+`broom` output gives: `estimate` is the mean of the posterior distribution, `std.error`, and credible intervals (`upper`, `lower`) -- same with `brms::posterior_summary()`. Because this is a logistic model, the coefficients are in log-odds. If we exponentiate the slope (`b_incumbent`), you get the odds ratio for incumbency -- this can't be right...`exp(11.47)` times more likely to vote for party if it is incumbent!? That is with 95% HDI [`exp(6.24)`, `exp(21.14)`].
+
+Interesting...reran model with two chains and got estimate of 7.18, this is probably not as robust as the one with 4 chains.
+
+```{r}
+# use broom for tidy output
+#broom::tidy(model1, parameters = c("^b_", "cor", "^sd_"), prob = 0.95)
+
+# or brms
+posterior_summary(model2, 
+                  # parameters: starts with b, sd, sigma
+                  pars = c("^b_", "^sd_", "cor"), 
+                  probs = c(0.025, 0.975) )
+
+# average probability of winning...is close to 0? 
+# retrieving the intercept
+a <- fixef(model2)[1]
+# transforming it back to the probability scale (equivalent to plogis(a))
+exp(a) / (1 + exp(a) )
+
+# effect of incumbency...is massive? 
+# OR = exp(11.47)
+fixef(model2)[2, c(1, 3, 4)] %>% exp
+```
+
+
+### plot diagnoses
+
+#### Spaghetti plot
+```{r eval = FALSE}
+tpp_data %>%
+    group_by(division, total_years) %>%
+  # generate an evenly spaced grid of points from the data
+    modelr::data_grid(incumbent = seq_range(incumbent, n = 1e2) ) %>%
+  # sample 100 fit lines from the posterior and overplot them
+    tidybayes::add_fitted_samples(model2, newdata = ., n = 100, scale = "linear") %>%
+    mutate(estimate = plogis(estimate) ) %>%
+    ggplot(aes(x = incumbent, y = estimate, group = .iteration) ) +
+    #geom_hline(yintercept = 0.5, lty = 2) +
+    geom_line(aes(y = estimate, group = .iteration), size = 0.5, alpha = 0.1) +
+    facet_wrap(~division, nrow = 75) + # there are 150 divisions...way too many to plot...
+    theme_bw(base_size = 10) + labs(x = "Incumbent", y = "Estimate")
+```
+
+
+#### Histograms and Traceplots
+
+Use traceplot to access the mixing of a chain
+
+```{r}
+#histogram and traceplots
+model2 %>%
+    plot(
+        combo = c("hist", "trace"), widths = c(1, 1.5),
+        theme = theme_bw(base_size = 12) )
+```
+
+
+## Hypothesis testing
+
+The `brms::hypothesis()` function computes an evidence ratio (equivalent to a Bayes factor for point hypotheses, such as θ=0) -- nono-linear hypothesis testing of a `brmsfit` object. When testing point hypotheses, this evidence ratio is computed using the Savage-Dickey method.
+ 
+```{r}
+(hyp1 <- hypothesis(model2, 
+                   class = "b",
+                   hypothesis = "incumbent = 0"))
+1 / hyp1$hypothesis$Evid.Ratio
+```
+
+### Compare the posterior to the prior
+
+Interesting...the posterior is non-normal, a bit of a right tail.
+
+```{r}
+plot(hyp1, theme = theme_bw(base_size = 20) )
+
+data.frame(prior = hyp1$prior_samples$H1, posterior = hyp1$samples$H1) %>%
+    gather(type, value) %>%
+    ggplot(aes(x = value) ) +
+    geom_histogram(bins = 50, alpha = 0.8) +
+    geom_vline(xintercept = 0, lty = 2, size = 1) +
+    facet_wrap(~type, scales = "free") +
+    xlab(expression(beta[incumbent]) ) +
+    theme_bw(base_size = 20)
+```
+
+
+# Model Comparison
+
+```{r}
+bayes_factor(model2, model3)
+```
+
+
+# Posterior Predictive Checking (PPC)
+
+Compare the observed data to data generated from the posterior distribution. (a generalization of NHST logic?)
+
+Okay, the shapes look roughly similar, but the density looks off? Probably just a axis scale thing.
+
+```{r}
+# posterior density from data
+tpp_data %>%
+    ggplot(aes(x = alp_win_t1 / total_years) ) +
+    geom_density(fill = "grey20") +
+    theme_bw(base_size = 20)
+
+# posterior generated from model, n = 100
+pp_check(model2, nsamples = 1e2) + 
+  theme_bw(base_size = 20)
+
+pp_check(model2, nsamples = 1e2, type = "stat_2d") +
+  theme_bw(base_size = 20)
+```
+
+
+
+
+
+
 

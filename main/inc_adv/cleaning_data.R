@@ -14,8 +14,8 @@ readin_files <- function (files, house, year) {
   return(data)
 }
 
-#---------- another one to import and clean up ----------# 
-tpp_fxn <- function(house, year) {
+#---------- another one to import and create rename variables ----------# 
+readdata_fxn <- function(house, year, data_type) {
   
   # all files in this folder 
   all_year <- list.files(file.path(path, house, year))
@@ -26,32 +26,43 @@ tpp_fxn <- function(house, year) {
   
   # remove .csv from names
   names(data) <- sapply(1:length(all_year), 
-                             function (x) str_split(all_year, pattern = "\\.")[[x]][1])
-  
-  # begin with only tpp data
-  tpp <- data[[str_which(names(data), pattern = "^tpp_")]]
+                        function (x) str_split(all_year, pattern = "\\.")[[x]][1])
   
   # clean up a bit
-  tpp_federal_year <- tpp %>% 
-    # this only gives me two decimal places
-    mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
-           alp_vs = `Australian Labor Party Percentage`,
-           division = DivisionNm,
-           year = year)
+  if (data_type == "party") {
+    tpp <- data[[str_which(names(data), pattern = "^tpp_")]]
+    out <- tpp %>% 
+      # this only gives me two decimal places
+      mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
+             alp_vs = `Australian Labor Party Percentage`,
+             division = DivisionNm,
+             year = year) 
+  } else if (data_type == "candidate") {
+    tcp <- data[[str_which(names(data), pattern = "^tcp_")]]
+    out <- tcp %>% 
+      # this only gives me two decimal places
+      mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
+             alp_vs = `Australian Labor Party Percentage`,
+             division = DivisionNm,
+             year = year) 
+  }
   
-  return(tpp_federal_year)
+  return(out)
 }
+
 
 #---------- now loop over all the years I have ----------# 
 years <- seq(2004, 2019, by = 3)
 tpps <- list()
 for (i in seq_along(years)){
-  tpps[[i]] <- tpp_fxn("lower", years[i])
+  tpps[[i]] <- readdata_fxn("lower", years[i], data_type = "party")
 }
 # rename list of dfs
 names(tpps) <- paste0("tpp_federal_", years)
 
 #----------  check that divisions are stable ----------# 
+# note that there are ~150 electoral divisions in Australia
+
 # divisions that were eliminated/redistributed or renamed?
 stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpp_federal_2016$division))| 
           is_empty(setdiff( tpps$tpp_federal_2016$division, tpps$tpp_federal_2019$division)))
@@ -82,7 +93,7 @@ filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) %>%
 
 #----------  create new variables ----------# 
 
-all_data <- filtered_data %>% 
+tpp_data <- filtered_data %>% 
   # this is variable for win in current year
   mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0))%>% 
   # add incumbency variable
@@ -101,6 +112,9 @@ all_data <- filtered_data %>%
     incumbent = dplyr::lead(alp_win_t, default = 0)
     )
 
+# save clean TPP data
+
+write.csv(tpp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
 
 # I just realized that there's a truncation/censorship problem here?!
 # We never account for entry and exit into study...is this a problem for 
@@ -109,11 +123,16 @@ all_data <- filtered_data %>%
 # 2013-2016 and 2016-2019, but 2010-2013 and 2019-2022 is truncated?
 # If the process that generates the margin of victory in 2013 is not random, 
 # is this a concern? 
+#
 
-
-
-
-
+#---------- now, deal with TCP data ----------# 
+years <- seq(2004, 2019, by = 3)
+tcps <- list()
+for (i in seq_along(years)){
+  tcps[[i]] <- readdata_fxn("lower", years[i], data_type = "candidate")
+}
+# rename list of dfs
+names(tcps) <- paste0("tcp_federal_", years)
 
 
 

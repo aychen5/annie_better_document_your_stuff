@@ -5,12 +5,7 @@ pacman::p_load(dplyr, ggplot2, rdrobust, rdd)
 ###############################################################
 
 
-glimpse(all_data)
-
-ggplot(data = all_data)+
-        geom_point(aes(x = alp_margin_t, y = alp_win_t1))+
-        geom_vline(xintercept = 0)
-
+# this is party-level data
 rdrobust(# margin of victory at t+1
          y = all_data$alp_margin_t1,
          # alp margin of victory at t
