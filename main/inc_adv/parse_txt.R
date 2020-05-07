@@ -33,6 +33,9 @@ lines
 # but it seems like this coding isn't consistent.
 ###############################################
 
+
+########### ------------ FP ------------ #################
+
 parse_fp_fxn <- function (previous_election, state) {
   # previous_election: a string, year of previous election
   # state: a string, one of the Australian states (NSW, QLD, WA, ...)
@@ -89,9 +92,18 @@ clean_fp_df <- fp_df %>%
   # add incumbent
   mutate(incumbent = if_else(str_detect(fp, pattern = "\\*"), 1, 0),
          year = 1998,
-         StateAb = "NSW")
+         state = "NSW") %>% 
  # parse party and fp vote share
+  separate(fp, into = c("candidate_name", "other"), sep = "   ", extra = "merge") %>% 
+  # use regex for the rest
+  mutate(candidate_party = str_extract(other, "[A-z]+"),
+         vote_count = str_extract(other, "[0-9]+,[0-9]+"),
+         fp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"),
+         swing = str_extract(other, "\\s+\\([\\+\\-][0-9]+\\.[0-9]\\)")) %>% 
+  select(-other)
+
 View(clean_fp_df)
+
 
 ########### ------------ TCP ------------ #################
 parse_tcp_fxn <- function (fourth_line_divs, state) {
@@ -178,6 +190,10 @@ clean_tcp_df <- tcp_df %>%
   filter(!row_number() %in% 
            c(1, seq(from = 2, to = nrow(tcp_df), by = 3)[-max(length(seq(from = 2, to = nrow(tcp_df), by = 3)))])) %>% 
   bind_cols(divs_df) %>% 
+  mutate(state = "NSW", 
+         year = 1998) %>% 
+  separate(tcp, into = c("candidate_name", "other"), extra = "merge") %>% 
+  mutate(tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
   
 
 View(clean_tcp_df)
@@ -185,7 +201,7 @@ View(clean_tcp_df)
 
 ### fix automated mistakes and data anomallies ###
 
-# Lindsay division candidates were not captured
+# Lindsay division candidates were not captured?
 # Need some way to capture which divisions are "fourth_line_divisions"
 # tcp dataframe still needs to have party of candidate
 
