@@ -192,21 +192,30 @@ clean_tcp_df <- tcp_df %>%
   bind_cols(divs_df) %>% 
   mutate(state = "NSW", 
          year = 1998) %>% 
-  separate(tcp, into = c("candidate_name", "other"), extra = "merge") %>% 
-  mutate(tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
+  separate(tcp, into = c("candidate_name", "other"), sep = "\\s{2}", extra = "merge") %>% 
+  #remove asterisks, may have apostrophe or hyphen in name
+  mutate(last_name = str_extract(candidate_name, "[A-Za-z\\-\\']+"),
+        tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
   
-# match candidate names in clean_fp_df to clean_tcp_df to figure out m
+# match candidate names in clean_fp_df to clean_tcp_df to figure out the party
+# unfortunately, full names are used in fp and only last names in tcp data
 
 
-View(clean_tcp_df)
+clean_fp_df <- clean_fp_df %>% 
+  #remove asterisks first; also tricky b/c some have "Hon" preceding name (make optional)
+  mutate(candidate_name = str_extract(candidate_name, "(Hon\\s)?[A-Za-z]+\\s+[A-Za-z]+")) %>% 
+  #first extract last names, and make all uppercase
+  mutate(last_names = toupper(str_extract(candidate_name, "[A-Za-z]+$"))) 
+  
+  
+intersect(clean_fp_df$last_names, toupper(clean_tcp_df$candidate_name))
 
 
 
-
-#--------------------- TO-DOs: --------------------- #
-### fix automated mistakes and data anomallies ###
+#--------------------- Annie's TO-DOs: --------------------- #
 
 # Need some way to capture which divisions are "fourth_line_divisions"
 # tcp dataframe still needs to have party of candidate
-
+# should refine the regex for candidate names: don't capture names with non-letters in them
+  # ie. o'toole and st.clair
 
