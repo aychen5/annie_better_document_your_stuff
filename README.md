@@ -22,11 +22,13 @@ Documents for replicability (and so I can recover things I accidentally delete =
 ├── /main_analysis
 │   ├── /inc_adv 
 │   └── contains: .Rproject, scripts for cleaning and general analysis
-│       ├── clean_data.R
-│       └── sorting_simulation.R
+│       ├── clean_data.R 
+│       ├── parse_australia_txt.R (clean data frames from text data)
+│       ├── RDD_national.R
+│       └── sorting_simulation.R 
 ├── /other_scripts
-│   ├── contains: misc code (e.g. for scraping)
-│       └── txt_scraper.py 
+│   └── contains: misc code (e.g. for scraping)
+│       └── txt_scraper.py (to get Adam Carr's text data)
 │       └── /bounds
 │           └── rdbound.ado
 ├── /extra
