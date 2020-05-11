@@ -193,13 +193,18 @@ clean_tcp_df <- tcp_df %>%
   mutate(state = "NSW", 
          year = 1998) %>% 
   separate(tcp, into = c("candidate_name", "other"), sep = "\\s{2}", extra = "merge") %>% 
+  #(there are some encoding issues with apostrophes and replace "ST" with "ST-")
+  mutate(candidate_name = if_else(str_detect(candidate_name, "[\u2018\u2019\u201A\u201B\u2032\u2035]"), 
+                                  gsub("[\u2018\u2019\u201A\u201B\u2032\u2035]", "'", candidate_name), candidate_name),
+         candidate_name = if_else(str_detect(candidate_name, "^st|^ST\\s"), 
+                                  gsub("^st|^ST\\s", "ST-", candidate_name), candidate_name)) %>% 
   #remove asterisks, may have apostrophe or hyphen in name
-  mutate(last_name = str_extract(candidate_name, "[A-Za-z\\-\\']+"),
+  mutate(last_name = str_extract(candidate_name, "[A-Za-z]+(?:['-][a-zA-Z]+)*"),
         tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
-  
+
+View(clean_tcp_df)  
 # match candidate names in clean_fp_df to clean_tcp_df to figure out the party
 # unfortunately, full names are used in fp and only last names in tcp data
-
 
 clean_fp_df <- clean_fp_df %>% 
   #remove asterisks first; also tricky b/c some have "Hon" preceding name (make optional)
@@ -207,7 +212,8 @@ clean_fp_df <- clean_fp_df %>%
   #first extract last names, and make all uppercase
   mutate(last_names = toupper(str_extract(candidate_name, "[A-Za-z]+$"))) 
   
-  
+
+View(clean_fp_df)
 intersect(clean_fp_df$last_names, toupper(clean_tcp_df$candidate_name))
 
 
