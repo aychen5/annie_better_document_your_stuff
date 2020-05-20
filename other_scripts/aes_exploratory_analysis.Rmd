@@ -67,3 +67,78 @@ pid <- data.frame(
 ggplot()
 ```
 
+
+
+# AES Candidate Surveys
+
+Use these distributions in the conjoint for more external validity. Personal data is restricted, but there are aggregate variables. Cross reference this with first preference data. 
+
+- A7b:	Were you ever employed as a State or Federal party official?
+- A7c: Did you ever hold any elected position within the party organisation?
+
+- F1: In what year were you born? (*see Age_group variable*)
+
+- F5: How many years of tertiary study have you completed since you left secondary school? (this means after high school in Australia) 
+
+- F10:	What is your current occupation? (If you are a member of parliament and/or retired: What was your former occupation?)
+
+
+
+```{r}
+cs_data <- read_dta("/data/acs19_unrestricted.dta")
+
+glimpse(cs_data)
+qplot(cs_data$A10)
+
+acs <- cs_data %>% 
+  mutate(age_group = case_when(Age_group == 1 ~ "18-24", #21
+                               Age_group == 2 ~ "25-34", #30
+                               Age_group == 3 ~ "35-44", #40
+                               Age_group == 4 ~ "45-54", #50
+                               Age_group == 5 ~ "55-64", #60
+                               Age_group == 6 ~ "65+"), #70
+         educyrs_group = case_when(F5COND == 0 ~ "0",
+                                   F5COND == 1 ~ "1-2",
+                                   F5COND == 2 ~ "3-4",
+                                   F5COND == 3 ~ "5-6",
+                                   F5COND == 4 ~ "7+"),
+         occup_group = case_when(F10COND == 1 ~ "Managers",
+                                   F10COND == 2 ~ "Professionals",
+                                   F10COND == 3 ~ "Technicians and Trades Workers",
+                                   F10COND == 4 ~ "Community and Personal Service Workers",
+                                   F10COND == 5 ~ "Clerical and Administrative Workers",
+                                   F10COND == 6 ~ "Sales Workers",
+                                   F10COND == 7 ~ "Machinery Operators and Drivers",
+                                   F10COND == 8 ~ "Labourers",
+                                   F10COND == 9 ~ "Other")) 
+```
+
+
+
+```{r}
+### age distribution
+qplot(acs$age_group)
+# in conjoint, use the median of the age group as age level
+# i.e., median of 18-24 is 21 
+prop.table(table(acs$age_group))
+# each age drawn with the following probabilities
+
+#education distribution
+qplot(acs$educyrs_group)
+# in conjoin, use the low end: (0, 1, 3, 5, 7)
+prop.table(table(acs$educyrs_group))
+
+
+#education distribution
+qplot(str_wrap(acs$occup_group, width = 20)) +
+  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# there are too many groups here, will need to condense (or just omit this)
+prop.table(table(acs$occup_group))
+```
+
+
+
+
+
+
