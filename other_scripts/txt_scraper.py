@@ -81,7 +81,7 @@ def save_txt_file(save_path, year = list(range(1990, 1998))[::3]):
             with open(f"{path}{'/'}{year}{'/'}{file_name}", 'w') as file:
                 file.write(r.text)
 
-save_txt_file(save_path = "/Users/anniechen/Dropbox/Thesis/inc_adv/data/federal/lower/", year = years)
+save_txt_file(save_path = "/Users/anniechen/Dropbox/Thesis/inc_adv/raw_data/federal/lower/", year = years)
 
 
 ### -------  migrate tidying of data to R ------- ###
