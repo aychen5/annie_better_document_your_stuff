@@ -1,5 +1,5 @@
 library(tidyverse)
-library(stringr)
+
 ##### a function to detect which divisions have "four line separators" #####
 # until the two-candidate vote share results are presented.
 
@@ -19,7 +19,7 @@ fourline_divs_fxn <- function (data = lines[[1]], state) {
     unlist() %>% 
     enframe() %>% 
     filter(value != "")%>% 
-    mutate(divs = ifelse(str_detect(value, "\"."), str_extract(value, "[A-Z]+((\\s|-)[A-Z]+)?"), NA)) %>% 
+    mutate(divs = ifelse(str_detect(value, "\"."), str_extract(value, "[A-Z]+((\\s|-|c)[A-Z]+)?"), NA)) %>% 
     select(divs, value) %>% 
     # interpolate the divisions
     zoo::na.locf(maxgap = 20, na.rm = FALSE) %>% 
@@ -34,3 +34,6 @@ fourline_divs_fxn <- function (data = lines[[1]], state) {
   
   return(result)
 }
+################################################################
+
+

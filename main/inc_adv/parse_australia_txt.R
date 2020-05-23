@@ -4,8 +4,9 @@ library(zoo)
 
 
 #--------------------- Annie's TO-DOs: --------------------- #
-# Need some way to capture which divisions are "fourth_line_divisions"
-# \u0092 is apostrophe
+#- rest of 1998 states
+#- 1998....1949
+#- add checks
 
 #####################################################
 ####### Cleaning text data #########
@@ -32,9 +33,13 @@ read_file_fxn <- function (year, state) {
 } 
 
 #list.files(path, pattern = ".txt")
+states <- c("nsw", "vic", "qld", "wa", "sa", "tas", "nt", "act")
+elect_year <- 1998
 
+# read in all states in a year
+map(states, function (x) read_file_fxn(year = elect_year, state = x))
 
-lines <- read_file_fxn(year = 1998, state = "vic")
+lines <- read_file_fxn(year = elect_year, state = "vic")
 
 ########## How is the raw data formatted? ##########
 # Each text file are the results for one State, 
@@ -49,6 +54,7 @@ lines <- read_file_fxn(year = 1998, state = "vic")
 
 
 ########### ------------------------ FP ------------------------ #################
+
 
 parse_fp_fxn <- function (previous_election, state) {
   # previous_election: a string, year of previous election
@@ -121,21 +127,21 @@ for (i in 1:length(lines[[1]])){
            fp_vote_share = as.numeric(str_extract(other, "\\s+[0-9]+\\.[0-9]")),
            swing = str_extract(other, "\\s+\\([\\+\\-][0-9]+\\.[0-9]\\)")) %>% 
     select(-other) %>%  #(there are some encoding issues with apostrophes and replace "ST" with "ST-")
-    mutate(candidate_name = if_else(str_detect(candidate_name, "[\u2018\u2019\u201A\u201B\u2032\u2035]"), 
-                                    gsub("[\u2018\u2019\u201A\u201B\u2032\u2035]", "'", candidate_name), candidate_name),
+    mutate(candidate_name = if_else(str_detect(candidate_name, "[\u0092\u2018\u2019\u201A\u201B\u2032\u2035]"), 
+                                    gsub("[\u0092\u2018\u2019\u201A\u201B\u2032\u2035]", "'", candidate_name), candidate_name),
            candidate_name = if_else(str_detect(candidate_name, "St\\s[A-Za-z]+"), 
                                     gsub("St\\s", "ST-", candidate_name), candidate_name)) %>% 
-    #remove asterisks first; also tricky b/c some have "Hon" preceding name (make optional)
-    mutate(candidate_name = str_extract(candidate_name, "((Hon|Dr)\\s)?[A-Za-z]+\\s+[A-Za-z]+((\\'|\\-)[A-Za-z]+)?")) %>% 
+    #remove asterisks first; also tricky b/c some have "Hon" preceding name (make optional), can be "Hon Dr"
+    mutate(candidate_name = str_extract(candidate_name, "((Hon|Dr)\\s)?(Dr\\s)?[A-Za-z]+\\s+[A-Za-z]+((\\'|\\-)[A-Za-z]+)?")) %>% 
     #first extract last names, and make all uppercase
     mutate(last_name = toupper(str_extract(candidate_name, "[A-Za-z]+(?:[\\'\\-][a-zA-Z]+)*$"))) 
   
   return(clean_fp_df)
 }
 
-# USE FUNCTION
-clean_fp_df <- parse_fp_fxn(previous_election = "1996", 
-                      state = "Vic")
+#source(here::here("parse_fp_fxn."))
+
+clean_fp_df <- parse_fp_fxn(previous_election = "1996", state = "Vic")
 #View(clean_fp_df)
 
 ########### ------------------------ TCP ------------------------ #################
@@ -193,64 +199,56 @@ parse_tcp_fxn <- function (state) {
   for (k in 1:(length(last_lines)-1)) {  
     # same trick as before
     detect_lines[k] <- str_detect(last_lines[10-k], "---")
-    line_separator_id <- which(detect_lines)[2]
+    line_separator_id <- 10-which(detect_lines)[3]
   }
   
   # add last division to rest of list
   tcp <- c(unlist(tcp), 
-           last_lines[line_separator_id],
-           last_lines[line_separator_id+1])
+           last_lines[line_separator_id-1],
+           last_lines[line_separator_id-2])
   
   ### need to align the divisions 
   tcp_df <- data.frame(tcp = tcp) %>% 
     filter(!str_detect(tcp, "character"))
   
-  return(tcp_df)
+  
+  divs_df <- tcp_df %>% 
+    # all the divisions
+    filter(row_number() %in% c(1, seq(from = 2, to = nrow(tcp_df), by = 3))) %>% 
+    # remove last row containing extra obs
+    slice(1:(max(n())-1)) %>% 
+    # parse only division names
+    separate(tcp, into = c("division_name", NA),
+             sep = ",", extra = "drop") %>% 
+    # double for TWO candidates in each division
+    slice(rep(1:n(), each = 2))
+  
+  # join divisions to candidates
+  clean_tcp_df <- tcp_df %>% 
+    # all the tcp observations
+    filter(!row_number() %in% 
+             c(1, seq(from = 2, to = nrow(tcp_df), by = 3)[-max(length(seq(from = 2, to = nrow(tcp_df), by = 3)))])) %>% 
+    bind_cols(divs_df) %>% 
+    mutate(state = toupper(state), 
+           year = 1998) %>% 
+    separate(tcp, into = c("candidate_name", "other"), sep = "\\s{2}", extra = "merge") %>% 
+    #(there are some encoding issues with apostrophes and replace "ST" with "ST-")
+    mutate(candidate_name = if_else(str_detect(candidate_name, "[\u0092\u2018\u2019\u201A\u201B\u2032\u2035]"), 
+                                    gsub("[\u0092\u2018\u2019\u201A\u201B\u2032\u2035]", "'", candidate_name), candidate_name),
+           candidate_name = if_else(str_detect(candidate_name, "^st|^ST\\s"), 
+                                    gsub("^st|^ST\\s", "ST-", candidate_name), candidate_name)) %>% 
+    #remove asterisks, may have apostrophe or hyphen in name
+    mutate(last_name = toupper(str_extract(candidate_name, "[A-Za-z]+(?:['-][a-zA-Z]+)*")),
+           tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
+  
+  return(clean_tcp_df)
 }
 
-##### re-format data #####
-
-parse_tcp_fxn(state = "Vic")
-
-divs_df <- tcp_df %>% 
-  # all the divisions
-  filter(row_number() %in% c(1, seq(from = 2, to = nrow(tcp_df), by = 3))) %>% 
-  # remove last row containing extra obs
-  slice(1:(max(n())-1)) %>% 
-  # parse only division names
-  separate(tcp, into = c("division_name", NA),
-           sep = ",", extra = "drop") %>% 
-  # double for TWO candidates in each division
-  slice(rep(1:n(), each = 2))
-
-
-# join divisions to candidates
-clean_tcp_df <- tcp_df %>% 
-  # all the tcp observations
-  filter(!row_number() %in% 
-           c(1, seq(from = 2, to = nrow(tcp_df), by = 3)[-max(length(seq(from = 2, to = nrow(tcp_df), by = 3)))])) %>% 
-  bind_cols(divs_df) %>% 
-  mutate(state = "NSW", 
-         year = 1998) %>% 
-  separate(tcp, into = c("candidate_name", "other"), sep = "\\s{2}", extra = "merge") %>% 
-  #(there are some encoding issues with apostrophes and replace "ST" with "ST-")
-  mutate(candidate_name = if_else(str_detect(candidate_name, "[\u2018\u2019\u201A\u201B\u2032\u2035]"), 
-                                  gsub("[\u2018\u2019\u201A\u201B\u2032\u2035]", "'", candidate_name), candidate_name),
-         candidate_name = if_else(str_detect(candidate_name, "^st|^ST\\s"), 
-                                  gsub("^st|^ST\\s", "ST-", candidate_name), candidate_name)) %>% 
-  #remove asterisks, may have apostrophe or hyphen in name
-  mutate(last_name = toupper(str_extract(candidate_name, "[A-Za-z]+(?:['-][a-zA-Z]+)*")),
-        tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
-
-#View(divs_df)  
-
+clean_tcp_df <- parse_tcp_fxn(state = "Vic")
 
 #--------------------- CHECKS --------------------- #
 # match candidate names in clean_fp_df to clean_tcp_df to figure out the party
 # full names are used in fp and only last names in tcp data
-
-# missing divisions (in tcp, but not in fp)
-stopifnot(length(setdiff(clean_tcp_df$division_name, clean_fp_df$division_name)) == 0)
 
 # all names in tcp data must be in fp data! 
 tryCatch(
@@ -263,12 +261,14 @@ tryCatch(
 
 # see log_manual_fixes.R script to see all the fixes 
 # that are unique to the text file.
-
+state <- "vic"
+year <- elect_year
 source(here::here("log_manual_fixes.R"))
 
 #--------------------- SAVE CLEAN TCP DATA --------------------- #
 
-#View(clean_tcp_df)
+View(clean_tcp_df)  
+View(clean_fp_df) 
 
 # add parties to candidates in tcp data
 clean_tcp_df <- clean_tcp_df %>% 
@@ -289,6 +289,6 @@ save_file_fxn <- function(year, state) {
   
 }
 
-save_file_fxn(year = 1998, state = "nsw")
+save_file_fxn(year = 1998, state = "vic")
 
 
