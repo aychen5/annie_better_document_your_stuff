@@ -22,8 +22,10 @@ Documents for replicability (and so I can recover things I accidentally delete =
 ├── /main_analysis
 │   ├── /inc_adv 
 │   └── contains: .Rproject, scripts for cleaning and general analysis
-│       ├── clean_data.R 
-│       ├── parse_australia_txt.R (clean data frames from text data)
+│       ├── cleaning_data.R 
+│       ├── parse_australia_txt.R (clean data frames from text data for election results 1998 and earlier)
+│       ├── fourth_line_divs.R (function to deal with formatting anomalies in txt data)
+│       ├── log_manual.R (some manual re-coding is inevitable...)
 │       ├── RDD_national.R
 │       └── sorting_simulation.R 
 ├── /other_scripts
