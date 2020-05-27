@@ -1,10 +1,17 @@
+rm(list=ls())
 library(tidyverse)
+library(zoo)
+
+### ------------ANNIE'S TO-DO's --------------- ###
+# - merge FP data
+# - tcp data needs lagged vote share variable
+
 
 #####################################################
 ####### Cleaning data [input raw data] #########
 #####################################################
 
-path <- "~/Dropbox/Thesis/inc_adv/data/federal"
+path <- "~/Dropbox/Thesis/inc_adv/raw_data/federal"
 # all years in directory
 #list.files(paste0(path, "/lower"))
 
@@ -32,19 +39,32 @@ readdata_fxn <- function(house, year, data_type) {
   if (data_type == "party") {
     tpp <- data[[str_which(names(data), pattern = "^tpp_")]]
     out <- tpp %>% 
-      # this only gives me two decimal places
+      # this only gives me two decimal places.. consider calculating with total votes
       mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
              alp_vs = `Australian Labor Party Percentage`,
              division = DivisionNm,
              year = year) 
   } else if (data_type == "candidate") {
     tcp <- data[[str_which(names(data), pattern = "^tcp_")]]
-    out <- tcp %>% 
-      # this only gives me two decimal places
-      mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
-             alp_vs = `Australian Labor Party Percentage`,
+    out <- tcp  %>% 
+      group_by(DivisionNm) %>% 
+      summarize(division_vote_total = sum(TotalVotes)) %>% 
+      slice(rep(seq_len(n()), each = 2)) %>% 
+      bind_cols(arrange(tcp, DivisionNm)) %>% 
+      select(-DivisionNm1) %>% 
+      mutate(tcp_vote_share = TotalVotes / (division_vote_total),
              division = DivisionNm,
              year = year) 
+  } else if (data_type == "fp") {
+    fp <- data[[str_which(names(data), pattern = "^fp_cand")]]
+    out <- fp %>% 
+      group_by(DivisionNm) %>% 
+      summarize(division_vote_total = sum(TotalVotes)) %>% 
+      full_join(fp_cand_2019) %>% 
+      mutate(tcp_vote_share = TotalVotes / (division_vote_total),
+             division = DivisionNm,
+             year = year) %>% 
+      filter(Surname != "Informal")
   }
   
   return(out)
@@ -64,9 +84,8 @@ names(tpps) <- paste0("tpp_federal_", years)
 # note that there are ~150 electoral divisions in Australia
 
 # divisions that were eliminated/redistributed or renamed?
-stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpp_federal_2016$division))| 
-          is_empty(setdiff( tpps$tpp_federal_2016$division, tpps$tpp_federal_2019$division)))
-
+#stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpp_federal_2016$division))| 
+#          is_empty(setdiff( tpps$tpp_federal_2016$division, tpps$tpp_federal_2019$division)))
 # for now, get rid of them...
 # (return to this later for better treatment of redistricting)
 
@@ -83,7 +102,7 @@ samedist_fxn <- function (year_after, year_before) {
 }
 
 # put all the data together
-filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) %>% 
+tpp_filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) %>% 
   bind_rows(samedist_fxn(tpps$tpp_federal_2016, tpps$tpp_federal_2013)) %>% 
   bind_rows(samedist_fxn(tpps$tpp_federal_2013, tpps$tpp_federal_2010))%>% 
   bind_rows(samedist_fxn(tpps$tpp_federal_2010, tpps$tpp_federal_2007))%>% 
@@ -93,7 +112,7 @@ filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) %>%
 
 #----------  create new variables ----------# 
 
-tpp_data <- filtered_data %>% 
+tpp_data <- tpp_filtered_data %>% 
   # this is variable for win in current year
   mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0))%>% 
   # add incumbency variable
@@ -135,9 +154,68 @@ for (i in seq_along(years)){
 names(tcps) <- paste0("tcp_federal_", years)
 
 
+# put all years together 
+tcp_filtered_data <- samedist_fxn(tcps$tcp_federal_2019, tcps$tcp_federal_2016) %>% 
+  bind_rows(samedist_fxn(tcps$tcp_federal_2016, tcps$tcp_federal_2013)) %>% 
+  bind_rows(samedist_fxn(tcps$tcp_federal_2013, tcps$tcp_federal_2010))%>% 
+  bind_rows(samedist_fxn(tcps$tcp_federal_2010, tcps$tcp_federal_2007))%>% 
+  bind_rows(samedist_fxn(tcps$tcp_federal_2007, tcps$tcp_federal_2004)) %>% 
+  # remove duplicate years
+  distinct()
+
+#----------  create new variables ----------# 
+temp_tcp <- tcp_filtered_data %>% 
+  group_by(division, year) %>% 
+  mutate(candidate_margin_t = tcp_vote_share - lag(tcp_vote_share, default = first(tcp_vote_share)),
+         candidate_margin_t = if_else(candidate_margin_t==0, lead(candidate_margin_t)*(-1), candidate_margin_t)) %>% 
+  arrange(division, desc(year))
+
+temp_tcp %>% 
+  group_by(division, year) %>% 
+  mutate(div_year_id = 1:n()) %>% 
+  #ungroup() %>% 
+  #mutate(lag_id = group_indices(., division, year)) %>%
+  group_by(division) %>%  
+  mutate(tcp_t0 = if_else(div_year_id == 1,
+                          any(str_detect(Surname, paste0(c(lag(Surname, n = 2L, order_by = year),
+                                                           lag(Surname, n = 3L, order_by = year)), collapse = "|"))),
+                          any(str_detect(Surname, paste0(c(lag(Surname, n = 1L, order_by = year),
+                                                           lag(Surname, n = 2L, order_by = year)), collapse = "|")))
+                          )) %>%
+  select(-Surname, everything()) %>% 
+  View()
 
 
+# check if candidate ran in election at t-1 -- need first preference data for this
+View(temp_tcp)
 
+#---------- now, deal with FP data ----------# 
+years <- seq(2004, 2019, by = 3)
+fps <- list()
+for (i in seq_along(years)){
+  fps[[i]] <- readdata_fxn("lower", years[i], data_type = "fp")
+}
+# rename list of dfs
+names(fps) <- paste0("fp_federal_", years)
+
+# put all years together 
+fp_filtered_data <- samedist_fxn(fps$fp_federal_2019, fps$fp_federal_2016) %>% 
+  bind_rows(samedist_fxn(fps$fp_federal_2016, fps$fp_federal_2013)) %>% 
+  bind_rows(samedist_fxn(fps$fp_federal_2013, fps$fp_federal_2010))%>% 
+  bind_rows(samedist_fxn(fps$fp_federal_2010, fps$fp_federal_2007))%>% 
+  bind_rows(samedist_fxn(fps$fp_federal_2007, fps$fp_federal_2004)) %>% 
+  # remove duplicate years
+  distinct()
+
+
+#------------ check if candidate ran in previous election ----------# 
+for (i in 1:nrow(temp_tcp)) {
+
+}
+
+
+temp_tcp %>% View()
+fp_filtered_data %>% View()
 
 
 
