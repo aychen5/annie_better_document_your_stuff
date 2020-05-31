@@ -1,0 +1,74 @@
+library(tidyverse)
+library(zoo)
+
+path <- "~/Dropbox/Thesis/inc_adv/clean_data"
+
+read_old_fxn <- function (year) {
+  
+  all_states <- list.files(file.path(path, year), pattern = "^tcp-")
+  
+  # read in all the data
+  readin_files <- function (file, year) {
+    data <- read_csv(paste0(path, "/", year, "/", file))
+    return(data)
+  }
+  data <- list()
+  data <- lapply(all_states, readin_files, year = year)
+  
+  # remove .csv from names
+  names(data) <- sapply(1:length(all_states), 
+                        function (x) str_split(all_states, pattern = "\\.")[[x]][1])
+  
+  all_data <- do.call(rbind, data)
+  
+  return(all_data)
+}
+
+
+years <- c(seq(from = 1990, to = 1998, by = 3), 1998)
+
+all_data <- map(years, read_old_fxn) %>% 
+  do.call(what = rbind) %>% 
+  arrange(division_name, desc(year)) %>% 
+  rename(StateAb = state, 
+         division = division_name, 
+         Surname = last_name,
+         GivenNm = candidate_name.y) %>% 
+  mutate(PartyAb = case_when(candidate_party == "ALP" ~ "ALP",
+                      candidate_party %in% list("NPA", "Lib", "CLP") ~ "LNP",
+                      candidate_party == "Grn" ~ "GRN",
+                      candidate_party == "ON" ~ "ON"))  
+
+# add rdd variables
+tcp_old <- all_data %>% 
+  group_by(division, year) %>% 
+  summarize(division_vote_total = sum(vote_count)) %>% 
+  left_join(all_data, by = c("division", "year")) %>% 
+  mutate(precise_tcp_vote = vote_count/division_vote_total,
+         div_year_id = NA) %>%  
+  group_by(division, year) %>% 
+  mutate(candidate_margin_t = tcp_vote_share - lag(tcp_vote_share, default = first(tcp_vote_share)),
+         candidate_margin_t = if_else(candidate_margin_t==0, lead(candidate_margin_t)*(-1), candidate_margin_t)) %>% 
+  arrange(division, desc(year)) %>% 
+  mutate(div_year_id = 1:n()) %>%
+  group_by(division) %>%
+  mutate(surname_t0 = ifelse(div_year_id == 1,
+                             ifelse(str_detect(Surname, lead(Surname, n = 2L)) | str_detect(Surname, lead(Surname, n = 3L)), 1, 0),
+                             ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0))) %>%
+  mutate(tcp_t0 = ifelse(surname_t0 == 1, 
+                         ifelse(div_year_id == 1, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
+                                                         lead(tcp_vote_share, n = 3L),
+                                                         lead(tcp_vote_share, n = 2L)), 
+                                ifelse(div_year_id == 2, ifelse(str_detect(Surname, lead(Surname, n = 2L)), 
+                                                                lead(tcp_vote_share, n = 2L), 
+                                                                lead(tcp_vote_share, n = 1L)), 
+                                       NA)),
+                         NA)) %>% 
+  rename(TotalVotes = vote_count) %>% 
+  select(-Surname, everything()) 
+  
+
+#------------ SAVE CLEAN DATA  ----------# 
+
+write.csv(tcp_old, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_old_data.csv")
+

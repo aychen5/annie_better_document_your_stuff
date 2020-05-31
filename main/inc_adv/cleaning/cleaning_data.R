@@ -39,9 +39,11 @@ readdata_fxn <- function(house, year, data_type) {
   if (data_type == "party") {
     tpp <- data[[str_which(names(data), pattern = "^tpp_")]]
     out <- tpp %>% 
-      # this only gives me two decimal places.. consider calculating with total votes
-      mutate(alp_margin_t = `Australian Labor Party Percentage` - `Liberal/National Coalition Percentage`,
-             alp_vs = `Australian Labor Party Percentage`,
+      # calculating with total votes because we want more precision, decimal places
+      mutate(alp_vs = `Australian Labor Party Votes`/ TotalVotes,
+             lnp_vs = `Liberal/National Coalition Votes`/TotalVotes,
+             alp_margin_t = alp_vs - lnp_vs,
+             lnp_margin_t = lnp_vs - alp_vs,
              division = DivisionNm,
              year = year) 
   } else if (data_type == "candidate") {
@@ -60,8 +62,8 @@ readdata_fxn <- function(house, year, data_type) {
     out <- fp %>% 
       group_by(DivisionNm) %>% 
       summarize(division_vote_total = sum(TotalVotes)) %>% 
-      full_join(fp_cand_2019) %>% 
-      mutate(tcp_vote_share = TotalVotes / (division_vote_total),
+      full_join(fp) %>% 
+      mutate(fp_vote_share = TotalVotes / (division_vote_total),
              division = DivisionNm,
              year = year) %>% 
       filter(Surname != "Informal")
@@ -84,7 +86,7 @@ names(tpps) <- paste0("tpp_federal_", years)
 # note that there are ~150 electoral divisions in Australia
 
 # divisions that were eliminated/redistributed or renamed?
-#stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpp_federal_2016$division))| 
+#stopifnot(is_empty(setdiff(tpps$tpp_federal_2019$division, tpps$tpsp_federal_2016$division))| 
 #          is_empty(setdiff( tpps$tpp_federal_2016$division, tpps$tpp_federal_2019$division)))
 # for now, get rid of them...
 # (return to this later for better treatment of redistricting)
@@ -112,9 +114,10 @@ tpp_filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) 
 
 #----------  create new variables ----------# 
 
-tpp_data <- tpp_filtered_data %>% 
+temp_tpp <- tpp_filtered_data %>% 
   # this is variable for win in current year
-  mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0))%>% 
+  mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0),
+         lnp_win_t = if_else(lnp_margin_t > 0, 1, 0))%>% 
   # add incumbency variable
   arrange(division) %>% 
   group_by(division) %>% 
@@ -128,12 +131,15 @@ tpp_data <- tpp_filtered_data %>%
     # variable for margin of victory in next year t+1
     alp_margin_t1 = dplyr::lead(alp_margin_t, default = NA),
     # variable for incumbent status in current election
-    incumbent = dplyr::lead(alp_win_t, default = 0)
+    alp_incumbent = dplyr::lead(alp_win_t, default = 0),
+    # do same for liberal-national coalition
+    lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
+    lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
+    lnp_margin_t0 = dplyr::lag(lnp_margin_t, default = NA),
+    lnp_margin_t1 = dplyr::lead(lnp_margin_t, default = NA),
+    lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
     )
 
-# save clean TPP data
-
-write.csv(tpp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
 
 # I just realized that there's a truncation/censorship problem here?!
 # We never account for entry and exit into study...is this a problem for 
@@ -168,26 +174,24 @@ temp_tcp <- tcp_filtered_data %>%
   group_by(division, year) %>% 
   mutate(candidate_margin_t = tcp_vote_share - lag(tcp_vote_share, default = first(tcp_vote_share)),
          candidate_margin_t = if_else(candidate_margin_t==0, lead(candidate_margin_t)*(-1), candidate_margin_t)) %>% 
-  arrange(division, desc(year))
-
-temp_tcp %>% 
-  group_by(division, year) %>% 
-  mutate(div_year_id = 1:n()) %>% 
-  #ungroup() %>% 
-  #mutate(lag_id = group_indices(., division, year)) %>%
-  group_by(division) %>%  
-  mutate(tcp_t0 = if_else(div_year_id == 1,
-                          any(str_detect(Surname, paste0(c(lag(Surname, n = 2L, order_by = year),
-                                                           lag(Surname, n = 3L, order_by = year)), collapse = "|"))),
-                          any(str_detect(Surname, paste0(c(lag(Surname, n = 1L, order_by = year),
-                                                           lag(Surname, n = 2L, order_by = year)), collapse = "|")))
-                          )) %>%
-  select(-Surname, everything()) %>% 
-  View()
-
+  arrange(division, desc(year)) %>% 
+  mutate(div_year_id = 1:n()) %>%
+  group_by(division) %>%
+  mutate(surname_t0 = ifelse(div_year_id == 1,
+                         ifelse(str_detect(Surname, lead(Surname, n = 2L)) | str_detect(Surname, lead(Surname, n = 3L)), 1, 0),
+                         ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0))) %>%
+  mutate(tcp_t0 = ifelse(surname_t0 == 1, 
+                         ifelse(div_year_id == 1, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
+                                                         lead(tcp_vote_share, n = 3L),
+                                                         lead(tcp_vote_share, n = 2L)), 
+                                ifelse(div_year_id == 2, ifelse(str_detect(Surname, lead(Surname, n = 2L)), 
+                                                                lead(tcp_vote_share, n = 2L), 
+                                                                lead(tcp_vote_share, n = 1L)), 
+                                                                NA)),
+                         NA)) %>% 
+  select(-Surname, everything()) 
 
 # check if candidate ran in election at t-1 -- need first preference data for this
-View(temp_tcp)
 
 #---------- now, deal with FP data ----------# 
 years <- seq(2004, 2019, by = 3)
@@ -205,22 +209,51 @@ fp_filtered_data <- samedist_fxn(fps$fp_federal_2019, fps$fp_federal_2016) %>%
   bind_rows(samedist_fxn(fps$fp_federal_2010, fps$fp_federal_2007))%>% 
   bind_rows(samedist_fxn(fps$fp_federal_2007, fps$fp_federal_2004)) %>% 
   # remove duplicate years
-  distinct()
+  distinct() %>% 
+  group_by(division, year) %>% 
+  arrange(division)
 
 
-#------------ check if candidate ran in previous election ----------# 
-for (i in 1:nrow(temp_tcp)) {
+#------------ MERGE TCP WITH FP DATA  ----------# 
 
-}
+tcp_data <- fp_filtered_data %>% 
+  select(division, year, fp_vote_share, Surname) %>% 
+  right_join(temp_tcp, by = c("division", "year", "Surname")) %>% 
+  #only variables we want, maybe can do something with these variables later...
+  select(-c(DivisionNm, DivisionID, CandidateID, BallotPosition,
+            HistoricElected, Elected, PartyNm, OrdinaryVotes, 
+            AbsentVotes, ProvisionalVotes, PrePollVotes, 
+            PostalVotes, SittingMemberFl, Swing)) %>%
+  mutate(PartyAb = case_when(PartyAb == "ALP" ~ "ALP",
+                             PartyAb %in% list("NP", "LP", "LNP", "LNQ", "CLP") ~ "LNP",
+                             PartyAb == "GRN" ~ "GRN",
+                             PartyAb == "ON" ~ "ON",
+                             PartyAb == "XEN" ~ "XEN",
+                             PartyAb == "IND" ~ "IND",
+                             PartyAb == "PUP" ~ "PUP",
+                             PartyAb == "KAP" ~ "KAP"))
 
 
-temp_tcp %>% View()
-fp_filtered_data %>% View()
+
+#------------ MERGE TPP WITH FP DATA  ----------# 
+
+tpp_data <- tcp_data %>% 
+  select(division, year, fp_vote_share, Surname, PartyAb) %>% 
+  left_join(temp_tpp, by = c("division", "year", "PartyAb")) %>% 
+  mutate(alp_fp = ifelse(PartyAb == "ALP", fp_vote_share, NA), 
+         lnp_fp = ifelse(PartyAb %in% list("LP","LNQ","LNP"), fp_vote_share, NA)) %>% 
+  group_by(division, year) %>% 
+  fill(alp_fp, .direction = "downup") %>% 
+  fill(lnp_fp, .direction = "downup") %>% 
+  filter(!is.na(StateAb)) %>% 
+  group_by(division) %>% 
+  # add fp lagged variables
+  mutate(alp_fp_t1 = dplyr::lead(alp_fp, default = 0),
+         lnp_fp_t1 = dplyr::lead(lnp_fp, default = 0),
+         open_seat = ifelse(alp_incumbent == 0 & lnp_incumbent == 0, 1, 0))
 
 
+#------------ SAVE CLEAN DATA  ----------# 
 
-
-
-
-
-
+write.csv(tpp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
+write.csv(tcp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
