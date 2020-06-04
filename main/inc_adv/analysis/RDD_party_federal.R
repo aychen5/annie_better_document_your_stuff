@@ -1,4 +1,4 @@
-pacman::p_load(dplyr, ggplot2, rdrobust, rdd)
+pacman::p_load(dplyr, ggplot2, rdrobust, rdd, readr)
 
 
 ### ------------ANNIE'S TO-DO's --------------- ###
@@ -30,14 +30,16 @@ my_rdd_fxn <- function (outcome, running, data = tpp_data, covars = NULL) {
                  x = running,
                  kernel = "triangular",
                  bwselect = 'msetwo',
+                 h = NULL,
                  c = 0, p = 1,
                  covs = covars,
                  all = TRUE,
-                 cluster = division)
+                 cluster = DivisionNm)
         
         out <- summary(mod)
         return(out)
 }
+
 
 # this is party-level data
 party_mod <- my_rdd_fxn(outcome = alp_margin_t1, running = alp_margin_t)
@@ -49,6 +51,7 @@ party_fp_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t)
 party_lnp_mod <- my_rdd_fxn(outcome = lnp_fp_t1, running = lnp_margin_t)
 
 # Add covariates 
-party_covs_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t, covars = open_seat)
+covars <- c(open_seat)
+party_covs_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t, covars = covars)
 
 

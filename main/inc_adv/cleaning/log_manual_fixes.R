@@ -199,10 +199,57 @@ clean_tcp_df[clean_tcp_df$candidate_name == "Christopher MILES *", "last_name"] 
 clean_tcp_df[clean_tcp_df$candidate_name == "David Currie", "last_name"] <- "CURRIE"
 
 
+} else if (state == "nsw" & year == 2001) {
+
+
+  clean_tcp_df[clean_tcp_df$candidate_name == "Steve Whan", "last_name"] <- "WHAN"
+  clean_tcp_df[clean_tcp_df$candidate_name == "Gary NAIRN *", "last_name"] <- "NAIRN"
+  clean_tcp_df[clean_tcp_df$candidate_name == "D Williams", "last_name"] <- "WILLIAMS"
+}else if (state == "vic" & year == 2001) {
+
+clean_tcp_df[clean_tcp_df$candidate_name == "ST-ONE *", "last_name"] <- "STONE"
+
+} else if (state == "sa" & year == 2001) {
+  
+  clean_tcp_df <- clean_tcp_df %>% 
+    filter(division_name != "MAYO")
+  
+} else if (state == "wa" & year == 2001) {
+# new seat## MALLEE is a new division in the text file?
+hasluck_df <- data.frame(
+  division_name = "HASLUCK",
+  candidate_name = c(
+    "Ronnie McLean",         
+    "Sharryn Jackson",                       
+    "Michael Daniels",                         
+    "Terry Ryan",                   
+    "Luke Edmonds",               
+    "Peter Markham",
+    "James Hopkinson",
+    "Roslyn Hegarty",
+    "Bethwyn Chan"),                  
+  incumbent = c(0, 0, 0, 0, 0, 0, 0, 0, 0),
+  candidate_party = c(NA, "ALP", NA, "CTA", "Grn", "AD", "ON", "NPA", "Lib"),
+  vote_count = as.character(c(804, 26891, 520, 1695, 3986, 3455, 4921, 401, 27658)),
+  fp_vote_share = c(1.1, 38.2, 0.7, 2.4, 5.7 , 4.9, 7.0, 0.06, 39.3),
+  last_name = toupper(c("McLean", 
+                        "Jackson", 
+                        "Daniels", 
+                        "Ryan", 
+                        "Edmonds", 
+                        "Markham", 
+                        "Hopkinson",
+                        "Hegarty",
+                        "Chan"))
+)
+
+# attach to main df
+clean_fp_df <- clean_fp_df %>% 
+  bind_rows(hasluck_df) %>% 
+  arrange(division_name)
+}else if (state == "tas" & year == 1990) {
+
+clean_tcp_df[clean_tcp_df$last_name == "S", "last_name"] <- "SMITH"
+clean_tcp_df[clean_tcp_df$last_name == "W", "last_name"] <- "SMITH"
+
 }
-
-
-
-
-
-

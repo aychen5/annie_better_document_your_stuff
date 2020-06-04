@@ -4,7 +4,6 @@ library(zoo)
 
 
 #--------------------- Annie's TO-DOs: --------------------- #
-#- rest of 1998 states
 #- 1998....1949
 #- add checks
 
@@ -47,9 +46,9 @@ read_file_fxn <- function (year, state) {
 
 #list.files(path, pattern = ".txt")
 #states <- c("nsw", "vic", "qld", "wa", "sa", "tas", "nt", "act")
-elect_year <- 1987
-prev_year <- "1984"
-state <- "ACT"
+elect_year <- 2001
+prev_year <- "1998"
+state <- "NT"
 
 # read in all states in a year
 #map(states, function (x) read_file_fxn(year = elect_year, state = x))

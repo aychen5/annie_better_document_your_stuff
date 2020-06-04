@@ -1,0 +1,208 @@
+---
+title: "Australian Election Study"
+author: "Annie Chen"
+date: "4/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, haven)
+```
+
+AES contains both Voter studies as well as Candidate studies
+
+What can we learn from these surveys?
+
+```{r}
+#Australian Election Study, 1987-2016 Trends
+path <- "~/Dropbox/Thesis/inc_adv/raw_data"
+statadata <- function(file_name) {
+  read_dta(paste0(path, "/surveys/", file_name))
+}
+
+# all files in this folder 
+all_year <- list.files(file.path(path, "/surveys"), pattern = ".dta")
+  
+# read in all the data
+data <- list()
+data <- sapply(X = all_year, FUN = statadata)
+  
+# remove .csv from names
+names(data) <- sapply(1:length(all_year), 
+                      function (x) str_split(all_year, pattern = "\\.")[[x]][1])
+
+```
+
+
+### 2019
+
+Create a data frame for MRP.
+
+```{r}
+mrp_data_fxn <- function (data) {
+  attach(data$AES_2019)
+  out <- data.frame(
+     age = AGE,
+     gender = dem_gen_16,
+     religion = H6,
+     married = H8,
+     education = G3,
+     income = J6,
+     housing = dem_home,
+     state = STATE,
+     division = CED_AEC,
+     pid = B1,
+     pid_strendth = B2,
+     weights = wt_pooled
+     )
+  return(out)
+}
+colnames(data$AES_2016)
+#data$AES_2019$H19STATE
+
+mrp_data_fxn(data$AES_2019)
+```
+
+
+
+
+
+Party identification:
+
+1 -- Liberal 
+2 -- Australian Labor Party
+3 -- National Party of Australia
+```{r}
+aes_trends <- data.frame(
+  pid = c(
+  data$AES_2001$B1,
+  # 8 = no party
+  data$AES_2004$b1,
+  # 8 = no party
+  data$AES_2007$b1,
+  # 6 = no party
+  data$AES_2010$b1,
+  # 6 = no party
+  data$AES_2013$b1,
+  # 6 = no party
+  data$AES_2016$B1,
+   # 6 = no party
+  data$AES_2019$B1
+))
+```
+
+
+
+
+
+
+# AES Candidate Surveys
+
+Use these distributions in the conjoint for more external validity. Personal data is restricted, but there are aggregate variables. Cross reference this with first preference data. 
+
+- A7b:	Were you ever employed as a State or Federal party official?
+- A7c: Did you ever hold any elected position within the party organisation?
+
+- F1: In what year were you born? (*see Age_group variable*)
+
+- F5: How many years of tertiary study have you completed since you left secondary school? (this means after high school in Australia) 
+
+- F10:	What is your current occupation? (If you are a member of parliament and/or retired: What was your former occupation?)
+
+
+
+```{r}
+acs_data <- read_dta("~/Documents/GitHub/annie_better_document_your_stuff/data/acs19_unrestricted.dta")
+
+glimpse(cs_data)
+qplot(cs_data$A10)
+
+acs <- acs_data %>% 
+  mutate(age_group = case_when(Age_group == 1 ~ "18-24", #21
+                               Age_group == 2 ~ "25-34", #30
+                               Age_group == 3 ~ "35-44", #40
+                               Age_group == 4 ~ "45-54", #50
+                               Age_group == 5 ~ "55-64", #60
+                               Age_group == 6 ~ "65+"), #70
+         educyrs_group = case_when(F5COND == 0 ~ "0",
+                                   F5COND == 1 ~ "1-2",
+                                   F5COND == 2 ~ "3-4",
+                                   F5COND == 3 ~ "5-6",
+                                   F5COND == 4 ~ "7+"),
+         occup_group = case_when(F10COND == 1 ~ "Managers",
+                                   F10COND == 2 ~ "Professionals",
+                                   F10COND == 3 ~ "Technicians and Trades Workers",
+                                   F10COND == 4 ~ "Community and Personal Service Workers",
+                                   F10COND == 5 ~ "Clerical and Administrative Workers",
+                                   F10COND == 6 ~ "Sales Workers",
+                                   F10COND == 7 ~ "Machinery Operators and Drivers",
+                                   F10COND == 8 ~ "Labourers",
+                                   F10COND == 9 ~ "Other")) 
+```
+
+
+
+### AGE conjoint correspondence:
+
+- 31 = 25-34 (0.10)
+
+- 42 = 35-44 (0.18)
+
+- 53 = 45-54 (0.25)
+
+- 64 = 55-64 (0.30)
+
+- 75 = 65+ (0.17)
+
+```{r}
+### age distribution
+qplot(acs$age_group)
+# in conjoint, use the median of the age group as age level
+# i.e., median of 18-24 is 21 
+prop.table(table(acs$age_group))
+# each age drawn with the following probabilities
+```
+
+
+### EDUCATION conjoint correspondence:
+
+- Managers = Business executive
+
+- Professionals = Lawyer
+
+
+
+```{r}
+#education distribution
+qplot(acs$educyrs_group)
+# in conjoin, use the low end: (0, 1, 3, 5, 7)
+prop.table(table(acs$educyrs_group))
+```
+
+
+
+### OCCUPATION conjoint correspondence:
+
+- Business executive = Managers
+
+- Lawyer = Professionals
+
+- ...
+
+```{r}
+#occupation distribution
+qplot(str_wrap(acs$occup_group, width = 20)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# there are too many groups here, will need to condense (or just omit this)
+prop.table(table(acs$occup_group))
+```
+
+
+GENDER (according to 2010 distribution)
+
+- Female = Female (27%)
+
+- Male = Male (73%)
+
+

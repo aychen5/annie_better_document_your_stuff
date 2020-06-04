@@ -56,16 +56,16 @@ pre { /* Code block - determines code spacing between lines */
 tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
 
 tpp_data <- tpp_data %>% 
-  group_by(division) %>% 
-  mutate(# number of "trials" per division
+  group_by(DivisionNm) %>% 
+  mutate(# number of "trials" per DivisionNm
          total_years = n(), 
          # rescale incumbent predictor
-         incumbent = if_else(incumbent == 1, 1, -1))
+         alp_incumbent = if_else(alp_incumbent == 1, 1, -1))
 ```
 
 
 ```{r}
-get_prior(alp_win_t1 ~ 1 + incumbent + (1 + incumbent||division),  
+get_prior(alp_win_t1 ~ 1 + alp_incumbent + (1 + alp_incumbent||DivisionNm),  
           data = tpp_data, 
           # this is the response distribution and link function
           family = binomial())
@@ -155,8 +155,8 @@ my_priors <- c(
 model2 <- brm(
   # double pipe if don't want to model correlation between intercept and slope
   # alp_win_t1 is if win in next year (number of successes)
-  # total_years is number of years in each division (total number of trials)
-    alp_win_t1 | trials(total_years) ~ 1 + incumbent + (1 + incumbent|division), 
+  # total_years is number of years in each DivisionNm (total number of trials)
+    alp_win_t1 | trials(total_years) ~ 1 + incumbent + (1 + incumbent|DivisionNm), 
     family = binomial(link = "logit"),
     # prior from previous fxn
     prior = my_priors,
@@ -208,7 +208,7 @@ fixef(model2)[2, c(1, 3, 4)] %>% exp
 #### Spaghetti plot
 ```{r eval = FALSE}
 tpp_data %>%
-    group_by(division, total_years) %>%
+    group_by(DivisionNm, total_years) %>%
   # generate an evenly spaced grid of points from the data
     modelr::data_grid(incumbent = seq_range(incumbent, n = 1e2) ) %>%
   # sample 100 fit lines from the posterior and overplot them
@@ -217,7 +217,7 @@ tpp_data %>%
     ggplot(aes(x = incumbent, y = estimate, group = .iteration) ) +
     #geom_hline(yintercept = 0.5, lty = 2) +
     geom_line(aes(y = estimate, group = .iteration), size = 0.5, alpha = 0.1) +
-    facet_wrap(~division, nrow = 75) + # there are 150 divisions...way too many to plot...
+    facet_wrap(~DivisionNm, nrow = 75) + # there are 150 DivisionNms...way too many to plot...
     theme_bw(base_size = 10) + labs(x = "Incumbent", y = "Estimate")
 ```
 

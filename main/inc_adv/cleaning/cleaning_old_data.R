@@ -25,7 +25,7 @@ read_old_fxn <- function (year) {
 }
 
 
-years <- c(seq(from = 1990, to = 1998, by = 3), 1998)
+years <- c(seq(from = 1990, to = 1998, by = 3), 1998, 2001)
 
 all_data <- map(years, read_old_fxn) %>% 
   do.call(what = rbind) %>% 
@@ -65,10 +65,68 @@ tcp_old <- all_data %>%
                                        NA)),
                          NA)) %>% 
   rename(TotalVotes = vote_count) %>% 
+  mutate(incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0)) %>% 
+  group_by(division, year) %>% 
+  mutate(open_seat = ifelse(incumbent == 0 & (lag(incumbent == 0) | lead(incumbent == 0)), 1, 0),
+         open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat)) %>% 
   select(-Surname, everything()) 
-  
+
+#View(tcp_old)
+### merge with new tcp data
+tcp_data <- tcp_data %>% 
+  bind_rows(tcp_old)
+
+
+#------------ GET TPP DATA FROM TCP  ----------# 
+
+tpp_old <- tcp_old %>% 
+  rename(DivisionNm = division) %>% 
+  mutate(alp_margin_t = ifelse(PartyAb == "ALP", candidate_margin_t/100, NA),
+         lnp_margin_t = ifelse(PartyAb == "LNP", candidate_margin_t/100, NA),
+         alp_vs = ifelse(PartyAb == "ALP", tcp_vote_share/100, NA),
+         lnp_vs = ifelse(PartyAb == "LNP", tcp_vote_share/100, NA),
+         alp_fp = ifelse(PartyAb == "ALP", fp_vote_share/100, NA),
+         lnp_fp = ifelse(PartyAb == "LNP", fp_vote_share/100, NA),
+         DivisionID = NA, 
+         Swing = NA) %>% 
+  group_by(DivisionNm, year) %>%  
+  fill(alp_vs, .direction = "downup") %>% 
+  fill(lnp_vs, .direction = "downup") %>% 
+  fill(alp_margin_t, .direction = "downup") %>% 
+  fill(lnp_margin_t, .direction = "downup") %>% 
+  fill(alp_fp, .direction = "downup") %>% 
+  fill(lnp_fp, .direction = "downup") %>% 
+  mutate(alp_win_t = ifelse(alp_margin_t > 0, 1, 0),
+         lnp_win_t = ifelse(lnp_margin_t > 0, 1, 0)) %>% 
+  filter(PartyAb == "ALP") %>% 
+  group_by(DivisionNm) %>% 
+  mutate( alp_win_t0 = dplyr::lag(alp_win_t, default = 0),
+          alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
+          alp_margin_t0 = dplyr::lag(alp_margin_t, default = NA),
+          alp_margin_t1 = dplyr::lead(alp_margin_t, default = NA),
+          alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
+          alp_incumbent = dplyr::lead(alp_win_t, default = 0),
+          # do same for liberal-national coalition
+          lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
+          lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
+          lnp_margin_t0 = dplyr::lag(lnp_margin_t, default = NA),
+          lnp_margin_t1 = dplyr::lead(lnp_margin_t, default = NA),
+          lnp_fp_t1 = dplyr::lead(lnp_fp, default = NA),
+          lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
+          )
+
+### merge to new tpp data (after 2001)
+all_tpp <- tpp_data %>% 
+  select(-c(setdiff(colnames(tpp_data), colnames(tpp_old)))) %>% 
+  bind_rows(tpp_old) %>% 
+  arrange(DivisionNm)
+
+View(tpp_old)
+View(tpp_data)
+View(all_tpp)
 
 #------------ SAVE CLEAN DATA  ----------# 
 
-write.csv(tcp_old, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_old_data.csv")
+write.csv(tcp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
+write.csv(all_tpp, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
 

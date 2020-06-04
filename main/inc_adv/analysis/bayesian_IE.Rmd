@@ -1,0 +1,50 @@
+---
+title: "Incumbency Effect from a Bayesian Perspective"
+author: "Annie Chen"
+date: "6/3/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# packages
+pacman::p_load(rstanarm, tidyverse, bayesplot)
+
+# settings
+knitr::opts_chunk$set(echo = TRUE)
+theme_set(bayesplot::theme_default())
+options(mc.cores = 4) 
+
+#election data 
+tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
+tcp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
+#Australian Election Study, 1987-2016 voter survey
+path <- "~/Dropbox/Thesis/inc_adv/raw_data"
+statadata <- function(file_name) {
+  read_dta(paste0(path, "/surveys/", file_name))
+}
+s
+# all files in this folder 
+all_year <- list.files(file.path(path, "/surveys"), pattern = ".dta")
+  
+# read in all the data
+data <- list()
+data <- sapply(X = all_year, FUN = statadata)
+  
+# remove .csv from names
+names(data) <- sapply(1:length(all_year), 
+                      function (x) str_split(all_year, pattern = "\\.")[[x]][1])
+
+```
+
+###  Multilevel Regression and Post-Stratification estimates for partisanship
+
+For each year, I need to collect the proportion of age, gender, education level, and xxx by electoral division.
+
+```{r}
+
+```
+
+
+
+
+

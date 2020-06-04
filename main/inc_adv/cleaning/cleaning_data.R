@@ -3,8 +3,7 @@ library(tidyverse)
 library(zoo)
 
 ### ------------ANNIE'S TO-DO's --------------- ###
-# - merge FP data
-# - tcp data needs lagged vote share variable
+# - add year 2001
 
 
 #####################################################
@@ -140,7 +139,6 @@ temp_tpp <- tpp_filtered_data %>%
     lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
     )
 
-
 # I just realized that there's a truncation/censorship problem here?!
 # We never account for entry and exit into study...is this a problem for 
 # other RDD incumbency studies?
@@ -231,27 +229,35 @@ tcp_data <- fp_filtered_data %>%
                              PartyAb == "XEN" ~ "XEN",
                              PartyAb == "IND" ~ "IND",
                              PartyAb == "PUP" ~ "PUP",
-                             PartyAb == "KAP" ~ "KAP"))
+                             PartyAb == "KAP" ~ "KAP"),
+         incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0)) %>% 
+  group_by(division, year) %>% 
+  mutate(open_seat = ifelse(incumbent == 0 & (lag(incumbent == 0) | lead(incumbent == 0)), 1, 0),
+         open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat))
 
-
+View(tcp_data)
 
 #------------ MERGE TPP WITH FP DATA  ----------# 
 
 tpp_data <- tcp_data %>% 
-  select(division, year, fp_vote_share, Surname, PartyAb) %>% 
-  left_join(temp_tpp, by = c("division", "year", "PartyAb")) %>% 
-  mutate(alp_fp = ifelse(PartyAb == "ALP", fp_vote_share, NA), 
-         lnp_fp = ifelse(PartyAb %in% list("LP","LNQ","LNP"), fp_vote_share, NA)) %>% 
+  select(division, year, fp_vote_share, Surname, PartyAb, open_seat) %>% 
+  inner_join(temp_tpp, by = c("division", "year")) %>% 
+  mutate(alp_fp = ifelse(PartyAb.x == "ALP", fp_vote_share, NA), 
+         lnp_fp = ifelse(PartyAb.x == "LNP", fp_vote_share, NA)) %>% 
   group_by(division, year) %>% 
   fill(alp_fp, .direction = "downup") %>% 
   fill(lnp_fp, .direction = "downup") %>% 
-  filter(!is.na(StateAb)) %>% 
+  filter(PartyAb.x == "ALP") %>% 
   group_by(division) %>% 
   # add fp lagged variables
-  mutate(alp_fp_t1 = dplyr::lead(alp_fp, default = 0),
-         lnp_fp_t1 = dplyr::lead(lnp_fp, default = 0),
-         open_seat = ifelse(alp_incumbent == 0 & lnp_incumbent == 0, 1, 0))
+  mutate(alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
+         lnp_fp_t1 = dplyr::lead(lnp_fp, default = NA)) %>% 
+  ungroup() %>% 
+  rename(PartyAb = PartyAb.x) %>% 
+  mutate(DivisionNm = toupper(DivisionNm)) %>% 
+  select(-c(division, PartyAb.y)) 
 
+View(tpp_data)
 
 #------------ SAVE CLEAN DATA  ----------# 
 
