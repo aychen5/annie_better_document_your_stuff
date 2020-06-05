@@ -52,9 +52,9 @@ readdata_fxn <- function(house, year, data_type) {
       summarize(division_vote_total = sum(TotalVotes)) %>% 
       slice(rep(seq_len(n()), each = 2)) %>% 
       bind_cols(arrange(tcp, DivisionNm)) %>% 
-      select(-DivisionNm1) %>% 
+      select(-DivisionNm...1) %>% 
       mutate(tcp_vote_share = TotalVotes / (division_vote_total),
-             division = DivisionNm,
+             division = DivisionNm...5,
              year = year) 
   } else if (data_type == "fp") {
     fp <- data[[str_which(names(data), pattern = "^fp_cand")]]
@@ -126,16 +126,16 @@ temp_tpp <- tpp_filtered_data %>%
     # variable for win in next year t+1
     alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
     # variable for margin of victory in previous election t-1
-    alp_margin_t0 = dplyr::lag(alp_margin_t, default = NA),
+    alp_vs_t0 = dplyr::lag(alp_vs, default = NA),
     # variable for margin of victory in next year t+1
-    alp_margin_t1 = dplyr::lead(alp_margin_t, default = NA),
+    alp_vs_t1 = dplyr::lead(alp_vs, default = NA),
     # variable for incumbent status in current election
     alp_incumbent = dplyr::lead(alp_win_t, default = 0),
     # do same for liberal-national coalition
     lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
     lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
-    lnp_margin_t0 = dplyr::lag(lnp_margin_t, default = NA),
-    lnp_margin_t1 = dplyr::lead(lnp_margin_t, default = NA),
+    lnp_vs_t0 = dplyr::lag(lnp_vs, default = NA),
+    lnp_vs_t1 = dplyr::lead(lnp_vs, default = NA),
     lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
     )
 

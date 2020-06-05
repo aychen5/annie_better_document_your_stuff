@@ -8,6 +8,16 @@ library(Formula)
 library(parallel)
 library(tidybayes)
 
+####################################################################
+# This script performs Multilevel Regression and Poststratification 
+# to get division-level political ideology scores.
+# The poststratification frame is takes variables from the Australian
+# Bureau of Statistics' 2016 Census. 
+# I use the 2019 Australian Voter Survey's ideology question, where 
+# 1 = left -> 10 = right.
+###################################################################
+
+
 ## ----getpsw--------------------------------------------------------------
 
 # this post-strat table is: age group x education x gender x marital status
@@ -214,7 +224,7 @@ fit_ideo <- stan_glmer(
     data = aes_aux,
     seed = 20200603
 )
-tidybayes::get_variables(fit_ideo)
+#tidybayes::get_variables(fit_ideo)
 
 
 
@@ -275,7 +285,7 @@ round(sample_popn_pref, 3)
 ### ------- ideology by state--------- ###
 
 division_df <- data.frame(
-    division = 1:150,
+    id = 1:150,
     model_div_sd = rep(-1, 150),
     #model_div_cil = rep(-1, 150),
     #model_div_ciu = rep(-1, 150),
@@ -301,8 +311,11 @@ for(i in 1:length(levels(as.factor(psw_aux$id)))) {
     division_df$sample_div_pref[i] <- round(mean(aes_aux$ideology[aes_aux$id == i], na.rm = TRUE), 4)
     division_df$N[i] <- length(aes_aux$ideology[aes_aux$id == i])
 }
-division_df
+mrp_df <- merge(division_df, 
+                     select(aes_aux, c(division, id)) %>% distinct(),
+                     by = "id")
 
+write_csv(mrp_df, "~/Dropbox/Thesis/inc_adv/raw_data/surveys/mrp.csv")
 
 ### ------- vizualise --------- ###
 

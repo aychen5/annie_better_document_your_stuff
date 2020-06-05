@@ -102,15 +102,15 @@ tpp_old <- tcp_old %>%
   group_by(DivisionNm) %>% 
   mutate( alp_win_t0 = dplyr::lag(alp_win_t, default = 0),
           alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
-          alp_margin_t0 = dplyr::lag(alp_margin_t, default = NA),
-          alp_margin_t1 = dplyr::lead(alp_margin_t, default = NA),
+          alp_vs_t0 = dplyr::lag(alp_vs, default = NA),
+          alp_vs_t1 = dplyr::lead(alp_vs, default = NA),
           alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
           alp_incumbent = dplyr::lead(alp_win_t, default = 0),
           # do same for liberal-national coalition
           lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
           lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
-          lnp_margin_t0 = dplyr::lag(lnp_margin_t, default = NA),
-          lnp_margin_t1 = dplyr::lead(lnp_margin_t, default = NA),
+          lnp_vs_t0 = dplyr::lag(lnp_vs, default = NA),
+          lnp_vs_t1 = dplyr::lead(lnp_vs, default = NA),
           lnp_fp_t1 = dplyr::lead(lnp_fp, default = NA),
           lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
           )

@@ -21,7 +21,8 @@ pacman::p_load(dplyr, ggplot2, rdrobust, rdd, readr)
 ### --------------- PARTY-LEVEL ANALYSIS ----------------- ###
 tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
 
-my_rdd_fxn <- function (outcome, running, data = tpp_data, covars = NULL) {
+my_rdd_fxn <- function (outcome, running, data = tpp_data, 
+                        covars = NULL, h = NULL) {
         
         attach(data, warn.conflicts = FALSE)
         
@@ -30,7 +31,7 @@ my_rdd_fxn <- function (outcome, running, data = tpp_data, covars = NULL) {
                  x = running,
                  kernel = "triangular",
                  bwselect = 'msetwo',
-                 h = NULL,
+                 h = h,
                  c = 0, p = 1,
                  covs = covars,
                  all = TRUE,
@@ -42,13 +43,19 @@ my_rdd_fxn <- function (outcome, running, data = tpp_data, covars = NULL) {
 
 
 # this is party-level data
-party_mod <- my_rdd_fxn(outcome = alp_margin_t1, running = alp_margin_t)
+#vote share in next election
+party_mod1 <- my_rdd_fxn(outcome = alp_vs_t1, running = alp_margin_t)
+party_mod2 <- my_rdd_fxn(outcome = alp_win_t1, running = alp_margin_t)
 
 # use fp vote share as the outcome 
 party_fp_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t)
 
 # LNP instaed of ALP
 party_lnp_mod <- my_rdd_fxn(outcome = lnp_fp_t1, running = lnp_margin_t)
+
+# manual bandwidths
+party_bw_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t,
+                           h = 0.05)
 
 # Add covariates 
 covars <- c(open_seat)
