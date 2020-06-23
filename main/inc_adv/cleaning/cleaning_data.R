@@ -177,7 +177,10 @@ temp_tcp <- tcp_filtered_data %>%
   group_by(division) %>%
   mutate(surname_t0 = ifelse(div_year_id == 1,
                          ifelse(str_detect(Surname, lead(Surname, n = 2L)) | str_detect(Surname, lead(Surname, n = 3L)), 1, 0),
-                         ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0))) %>%
+                         ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0)),
+         surname_t1 = ifelse(div_year_id == 1,
+                             ifelse(str_detect(Surname, lag(Surname, n = 1L)) | str_detect(Surname, lag(Surname, n = 2L)), 1, 0),
+                             ifelse(str_detect(Surname, lag(Surname, n = 2L)) | str_detect(Surname, lag(Surname, n = 3L)), 1, 0))) %>%
   mutate(tcp_t0 = ifelse(surname_t0 == 1, 
                          ifelse(div_year_id == 1, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
                                                          lead(tcp_vote_share, n = 3L),
@@ -186,6 +189,15 @@ temp_tcp <- tcp_filtered_data %>%
                                                                 lead(tcp_vote_share, n = 2L), 
                                                                 lead(tcp_vote_share, n = 1L)), 
                                                                 NA)),
+                         NA),
+         tcp_t1 = ifelse(surname_t1 == 1, 
+                         ifelse(div_year_id == 1, ifelse(str_detect(Surname, lag(Surname, n = 2L)), 
+                                                         lag(tcp_vote_share, n = 2L),
+                                                         lag(tcp_vote_share, n = 1L)), 
+                                ifelse(div_year_id == 2, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
+                                                                lag(tcp_vote_share, n = 3L), 
+                                                                lag(tcp_vote_share, n = 2L)), 
+                                       NA)),
                          NA)) %>% 
   select(-Surname, everything()) 
 
@@ -209,7 +221,7 @@ fp_filtered_data <- samedist_fxn(fps$fp_federal_2019, fps$fp_federal_2016) %>%
   # remove duplicate years
   distinct() %>% 
   group_by(division, year) %>% 
-  arrange(division)
+  arrange(division, desc(year)) 
 
 
 #------------ MERGE TCP WITH FP DATA  ----------# 

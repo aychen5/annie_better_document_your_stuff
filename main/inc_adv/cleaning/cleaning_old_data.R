@@ -5,7 +5,9 @@ path <- "~/Dropbox/Thesis/inc_adv/clean_data"
 
 read_old_fxn <- function (year) {
   
-  all_states <- list.files(file.path(path, year), pattern = "^tcp-")
+  #type <- ifelse(data_type == "fp", "fp-", "tcp-")
+                 
+  all_states <- list.files(file.path(path, year), pattern = "tcp-")
   
   # read in all the data
   readin_files <- function (file, year) {
@@ -16,16 +18,15 @@ read_old_fxn <- function (year) {
   data <- lapply(all_states, readin_files, year = year)
   
   # remove .csv from names
-  names(data) <- sapply(1:length(all_states), 
-                        function (x) str_split(all_states, pattern = "\\.")[[x]][1])
-  
+  # names(all_data) <- sapply(1:length(all_states), 
+  #                           function (x) str_split(all_states, pattern = "\\.")[[x]][1])
   all_data <- do.call(rbind, data)
   
   return(all_data)
 }
 
-
-years <- c(seq(from = 1990, to = 1998, by = 3), 1998, 2001)
+#1980, 1983, 1984, 1987,
+years <- c( seq(from = 1990, to = 1998, by = 3), 1998, 2001)
 
 all_data <- map(years, read_old_fxn) %>% 
   do.call(what = rbind) %>% 
@@ -45,7 +46,9 @@ tcp_old <- all_data %>%
   summarize(division_vote_total = sum(vote_count)) %>% 
   left_join(all_data, by = c("division", "year")) %>% 
   mutate(precise_tcp_vote = vote_count/division_vote_total,
-         div_year_id = NA) %>%  
+         div_year_id = NA,
+         tcp_vote_share = tcp_vote_share/100,
+         fp_vote_share = fp_vote_share/100) %>%  
   group_by(division, year) %>% 
   mutate(candidate_margin_t = tcp_vote_share - lag(tcp_vote_share, default = first(tcp_vote_share)),
          candidate_margin_t = if_else(candidate_margin_t==0, lead(candidate_margin_t)*(-1), candidate_margin_t)) %>% 
@@ -53,8 +56,11 @@ tcp_old <- all_data %>%
   mutate(div_year_id = 1:n()) %>%
   group_by(division) %>%
   mutate(surname_t0 = ifelse(div_year_id == 1,
-                             ifelse(str_detect(Surname, lead(Surname, n = 2L)) | str_detect(Surname, lead(Surname, n = 3L)), 1, 0),
-                             ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0))) %>%
+                           ifelse(str_detect(Surname, lead(Surname, n = 2L)) | str_detect(Surname, lead(Surname, n = 3L)), 1, 0),
+                           ifelse(str_detect(Surname, lead(Surname, n = 1L)) | str_detect(Surname, lead(Surname, n = 2L)), 1, 0)),
+       surname_t1 = ifelse(div_year_id == 1,
+                           ifelse(str_detect(Surname, lag(Surname, n = 1L)) | str_detect(Surname, lag(Surname, n = 2L)), 1, 0),
+                           ifelse(str_detect(Surname, lag(Surname, n = 2L)) | str_detect(Surname, lag(Surname, n = 3L)), 1, 0))) %>%
   mutate(tcp_t0 = ifelse(surname_t0 == 1, 
                          ifelse(div_year_id == 1, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
                                                          lead(tcp_vote_share, n = 3L),
@@ -62,6 +68,15 @@ tcp_old <- all_data %>%
                                 ifelse(div_year_id == 2, ifelse(str_detect(Surname, lead(Surname, n = 2L)), 
                                                                 lead(tcp_vote_share, n = 2L), 
                                                                 lead(tcp_vote_share, n = 1L)), 
+                                       NA)),
+                         NA),
+         tcp_t1 = ifelse(surname_t1 == 1, 
+                         ifelse(div_year_id == 1, ifelse(str_detect(Surname, lag(Surname, n = 2L)), 
+                                                         lag(tcp_vote_share, n = 2L),
+                                                         lag(tcp_vote_share, n = 1L)), 
+                                ifelse(div_year_id == 2, ifelse(str_detect(Surname, lead(Surname, n = 3L)), 
+                                                                lag(tcp_vote_share, n = 3L), 
+                                                                lag(tcp_vote_share, n = 2L)), 
                                        NA)),
                          NA)) %>% 
   rename(TotalVotes = vote_count) %>% 
@@ -71,10 +86,42 @@ tcp_old <- all_data %>%
          open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat)) %>% 
   select(-Surname, everything()) 
 
-#View(tcp_old)
 ### merge with new tcp data
 tcp_data <- tcp_data %>% 
-  bind_rows(tcp_old)
+  bind_rows(tcp_old) %>% 
+  mutate(division = toupper(division)) %>% 
+  arrange(division, desc(year)) %>% 
+  unite("division-year", division, year, sep = "-",  remove = FALSE)
+
+#------------ GET FP DATA ----------# 
+
+years <- c(seq(from = 1990, to = 1998, by = 3), 1998, 2001)
+fp_old <- map(years, function(year) {read_old_fxn(year)}) %>% 
+  do.call(what = rbind) %>% 
+  arrange(division_name, desc(year)) %>% 
+  rename(division = division_name,
+         Surname = last_name,
+         DivisionID = division_id,
+         Swing = swing,
+         PartyAb = candidate_party,
+         TotalVotes = vote_count,
+         StateAb = state,
+         GivenNm = candidate_name) %>% 
+  mutate(Swing = as.numeric(str_extract(Swing, pattern = "(\\-)?[0-9]+\\.[0-9]+")),
+         fp_vote_share = fp_vote_share/100)
+
+fp_new <- fp_filtered_data %>% 
+  mutate(incumbent = ifelse(HistoricElected == "Y", 1, 0)) %>% 
+  select(-c(BallotPosition, CandidateID, Elected, 
+            PostalVotes, ProvisionalVotes, AbsentVotes,
+            OrdinaryVotes, PartyNm, PrePollVotes,HistoricElected,
+            SittingMemberFl, DivisionNm, division_vote_total))
+
+# merge with fp new
+fp_data <- bind_rows(fp_new, fp_old) %>% 
+  arrange(division, desc(year))  %>% 
+  mutate(division = toupper(division)) %>% 
+  unite("division-year", division, year, sep = "-",  remove = FALSE)
 
 
 #------------ GET TPP DATA FROM TCP  ----------# 
@@ -129,4 +176,5 @@ View(all_tpp)
 
 write.csv(tcp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
 write.csv(all_tpp, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
+write.csv(fp_data, "~/Dropbox/Thesis/inc_adv/clean_data/fp_data.csv")
 

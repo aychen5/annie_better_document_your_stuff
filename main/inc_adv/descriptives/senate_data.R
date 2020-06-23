@@ -1,5 +1,6 @@
 library(readr)
 library(tidyverse)
+library("CGPfunctions")
 
 path <- "~/Dropbox/Thesis/inc_adv/raw_data/federal/upper"
 readin_files <- function (year) {
@@ -119,8 +120,7 @@ slopegraph_df <-
   snt_hse %>% 
   ungroup() %>%
   filter(Party=="LNP" & 
-           Incumbent=="Y" & 
-           State=="NSW") %>%
+           Incumbent=="Y") %>%
   dplyr::rename(Senate=p ,House=per) %>%
   #group_by(Senate, House) %>% 
   pivot_longer(-c(division, State, Party, Surname, GivenNm, Incumbent,
@@ -128,26 +128,33 @@ slopegraph_df <-
                names_to = "type", values_to = "fp") %>% 
   dplyr::mutate(name=stringr::str_to_title(Surname),
                 indx=1:n(),
-                fp = round(fp, digits = 1)) %>%
+                fp = round(fp, digits = 2)) %>%
   arrange(division)
-glimpse(slopegraph_df)
 
 
 
-library("CGPfunctions")
+
 # create a slope graph
+plot_fxn <- function (year, data) {
+  out <- newggslopegraph(dataframe = slopegraph_df, 
+                         Times = type, 
+                         Measurement = fp, 
+                         Grouping = division, 
+                         Title = "Personal Vote for Coalition Incumbents", 
+                         SubTitle = paste0(year, " Australian Federal Election"), 
+                         Caption = NULL,
+                         DataTextColor = "#337AB7",
+                         DataLabelPadding = 0.05,
+                         DataTextSize = 3,
+                         LineThickness = .35,
+                         YTextSize = 2,
+                         LineColor = "salmon",
+                         ThemeChoice = "gdocs"
+  )
+  return(out)
+}
 
-newggslopegraph(dataframe = slopegraph_df, 
-                Times = type, 
-                Measurement = fp, 
-                Grouping = division, 
-                Title = "Personal Vote", 
-                SubTitle = NULL, 
-                Caption = NULL,
-                LineThickness = .5,
-                YTextSize = 4,
-                LineColor = c(rep("gray",3), "red", rep("gray",3), "red", rep("gray",10))
-)
-?newggslopegraph
+years
+slopegrph_2019 <- plot_fxn(data = slopegraph_df, year = 2019)
 
-
+ggsave("slopegrph_2019.png")

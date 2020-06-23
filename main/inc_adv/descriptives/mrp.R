@@ -318,13 +318,16 @@ mrp_df <- merge(division_df,
 write_csv(mrp_df, "~/Dropbox/Thesis/inc_adv/raw_data/surveys/mrp.csv")
 
 ### ------- vizualise --------- ###
+library(ggplot2)
+
+ideo <- read.csv("~/Dropbox/Thesis/inc_adv/raw_data/surveys/mrp.csv")
 
 
-tidybayes::get_variables(fit_ideo)
-fit_ideo %>%
-    spread_draws(b[,group]) %>%
-    median_qi() %>% 
-    separate(group, c("group", "condition"), ":") %>% 
-    filter(group == "division")
+nat_map16 <- nat_map_download(2016)
+nat_data16 <- nat_data_download(2016)
 
+ggplot(aes(map_id=id), data=nat_data16) +
+    geom_map(aes(fill=state), map=nat_map16, col = "grey50") +
+    expand_limits(x=nat_map16$long, y=nat_map16$lat) + 
+    theme_map() + coord_equal()
 

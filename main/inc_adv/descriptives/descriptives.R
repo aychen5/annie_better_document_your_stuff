@@ -32,12 +32,12 @@ map(covariates, function (x) {
 
 
 tpp_data %>% 
-  filter(alp_incumbent == 1) %>% 
+  filter(alp_incumbent == 1 & alp_margin_t < 0.10 & alp_margin_t > -0.10 ) %>% 
 ggplot() +
- geom_histogram(aes(alp_margin_t), bins = 100,
+ geom_histogram(aes(alp_margin_t), bins = 20,
                 fill = "red", alpha = 0.5) +
-  scale_x_continuous(limits = c(-0.5, 0.5)) +
-  labs(x = "Vote share")
+  scale_x_continuous(limits = c(-0.1, 0.1)) +
+  labs(x = "Vote Margin")
 
 tpp_data %>% 
   filter(lnp_incumbent == 1) %>% 
