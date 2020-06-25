@@ -32,7 +32,7 @@ my_rdd_fxn <- function (outcome, running, data = tpp_data,
                  kernel = "triangular",
                  bwselect = 'msetwo',
                  h = h,
-                 c = 0, p = 1,
+                 c = 0.5, p = 1,
                  covs = covars,
                  all = TRUE,
                  cluster = DivisionNm)
@@ -44,11 +44,11 @@ my_rdd_fxn <- function (outcome, running, data = tpp_data,
 
 # this is party-level data
 #vote share in next election
-party_mod1 <- my_rdd_fxn(outcome = alp_vs_t1, running = alp_margin_t)
-party_mod2 <- my_rdd_fxn(outcome = alp_win_t1, running = alp_margin_t)
+party_mod1 <- my_rdd_fxn(outcome = alp_vs_t1, running = alp_vs)
+party_mod2 <- my_rdd_fxn(outcome = alp_win_t1, running = alp_vs)
 
 # use fp vote share as the outcome 
-party_fp_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_margin_t)
+party_fp_mod <- my_rdd_fxn(outcome = alp_fp_t1, running = alp_vs)
 
 # LNP instaed of ALP
 party_lnp_mod <- my_rdd_fxn(outcome = lnp_fp_t1, running = lnp_margin_t)

@@ -43,11 +43,24 @@ read_file_fxn <- function (year, state) {
   
   return(lines)
 } 
+save_file_fxn <- function(year, state) {
+  
+  save_path <- "~/Dropbox/Thesis/inc_adv/clean_data"
+  year_dir <- paste0("/", year)
+  file_name_tcp <- paste0("/tcp-", state, "-", year, ".csv")
+  file_name_fp <- paste0("/fp-", state, "-", year, ".csv")
+  
+  write.csv(clean_tcp_df, paste0(save_path, year_dir, file_name_tcp))
+  write.csv(clean_fp_df, paste0(save_path, year_dir, file_name_fp))
+  
+}
 
 #list.files(path, pattern = ".txt")
 #states <- c("nsw", "vic", "qld", "wa", "sa", "tas", "nt", "act")
-elect_year <- 2001
-prev_year <- "1998"
+#1951, 1955, 1958, 961, 1963, 1966, 1972, 1975, 1977, 1980, 1983, 1984, 1987...
+#
+elect_year <- 1977
+prev_year <- "1975"
 state <- "NT"
 
 # read in all states in a year
@@ -156,12 +169,10 @@ for (i in 1:length(lines[[1]])){
   return(clean_fp_df)
 }
 
-#source(here::here("parse_fp_fxn."))
-
 clean_fp_df <- parse_fp_fxn(previous_election = prev_year, 
                             state = state, 
                             elect_year = elect_year)
-View(clean_fp_df)
+
 
 ########### ------------------------ TCP ------------------------ #################
 
@@ -190,7 +201,7 @@ parse_tcp_fxn <- function (state, elect_year) {
   } else {
   
   ### get divisions with extra comments section with custom function ###
-  source(here::here("fourline_divs_fxn.R"))
+  source(here::here("/cleaning/fourline_divs_fxn.R"))
   fourth_line_divs <- fourline_divs_fxn(state = state)
   # state: a string, one of the Australian states (NSW, QLD, WA, ...)
   
@@ -203,7 +214,7 @@ parse_tcp_fxn <- function (state, elect_year) {
                                     data = lines[[1]],
                                     index = i) {
         detect_lines <- c()
-        for (j in 1:16) {
+        for (j in 1:18) {
           detect_lines[j] <- str_detect(data[index-j], "---")
         }
         # the two-party count is (often) above the third "---" separator,
@@ -276,7 +287,8 @@ parse_tcp_fxn <- function (state, elect_year) {
            candidate_name = if_else(str_detect(candidate_name, "^st|^ST|^St\\s"), 
                                     gsub("^st|^ST|^St\\s", "ST-", candidate_name), candidate_name)) %>% 
     #remove asterisks, may have apostrophe or hyphen in name
-    mutate(last_name = toupper(str_extract(candidate_name, "[A-Za-z]+((\\'|\\-)?[a-zA-Z]+)*")),
+    mutate(last_name = toupper(str_extract(candidate_name, "[A-Za-z]+((\\'|\\-)?[a-zA-Z]+)(\\s\\*)?$")),
+           last_name = str_extract(last_name, "[A-Za-z]+((\\'|\\-)?[a-zA-Z]+)"),
            tcp_vote_share = str_extract(other, "\\s+[0-9]+\\.[0-9]"))
   
   return(clean_tcp_df)
@@ -284,18 +296,41 @@ parse_tcp_fxn <- function (state, elect_year) {
 
 clean_tcp_df <- parse_tcp_fxn(state = state,
                               elect_year = elect_year)
-View(clean_tcp_df)
+
 
 #--------------------- CHECKS --------------------- #
 # match candidate names in clean_fp_df to clean_tcp_df to figure out the party
 # full names are used in fp and only last names in tcp data
+
+# If any of the fp vote shares are greater than 50%, 
+# distribute all others to second place and replace values in tcp df.
+fp2tcp_divs <- clean_fp_df[clean_fp_df$fp_vote_share > 50, "division_name"]
+#fp2tcp_divs <- fp2tcp_divs[!is.na(fp2tcp_divs)]
+fp2tcp_fxn <- function(division) {
+  df <- clean_fp_df %>% filter(division_name == division)
+  tcp_winner <- df[df$fp_vote_share == max(df$fp_vote_share, na.rm = TRUE), ]
+  tcp_winner$tcp_vote_share <- tcp_winner$fp_vote_share
+  tcp_second <- df[df$fp_vote_share == sort(df$fp_vote_share, partial = length(df$fp_vote_share)-1)[length(df$fp_vote_share)-1], ]
+  tcp_second$tcp_vote_share <- sum(df$fp_vote_share) - tcp_winner$fp_vote_share
+  replacements <- bind_rows(tcp_winner, tcp_second) %>% 
+    mutate(other = NA)  %>% 
+    select(candidate_name, other, division_name, state, year, last_name, tcp_vote_share)
+  
+  return(replacements)
+}
+
+for (div in fp2tcp_divs) {
+  # replace in tcp df
+  clean_tcp_df[which(clean_tcp_df$division_name == div), ] <- fp2tcp_fxn(division = div)
+}
 
 # all names in tcp data must be in fp data! 
 tryCatch(
   expr = stopifnot(length(setdiff(clean_tcp_df$last_name, clean_fp_df$last_name))==0),
   # throw error and print missings
   finally = print(setdiff(clean_tcp_df$last_name, clean_fp_df$last_name))
-         )
+)
+
 
 View(clean_tcp_df)
 View(clean_fp_df) 
@@ -309,26 +344,13 @@ View(clean_fp_df)
 #--------------------- SAVE CLEAN TCP DATA --------------------- #
 
 
-
 # add parties to candidates in tcp data
 clean_tcp_df <- clean_tcp_df %>% 
   filter(last_name %in% clean_fp_df$last_name) %>% 
   full_join(clean_fp_df, by = c("division_name", "state", "year", "last_name")) %>% 
   filter(!is.na(tcp_vote_share)) %>% 
+  mutate(tcp_vote_share = as.numeric(tcp_vote_share)) %>% 
   select(-c(other, candidate_name.x, swing, division_id))
-
-
-save_file_fxn <- function(year, state) {
-  
-  save_path <- "~/Dropbox/Thesis/inc_adv/clean_data"
-  year_dir <- paste0("/", year)
-  file_name_tcp <- paste0("/tcp-", state, "-", year, ".csv")
-  file_name_fp <- paste0("/fp-", state, "-", year, ".csv")
-  
-  write.csv(clean_tcp_df, paste0(save_path, year_dir, file_name_tcp))
-  write.csv(clean_fp_df, paste0(save_path, year_dir, file_name_fp))
-  
-}
 
 save_file_fxn(year = elect_year, state = tolower(state))
 

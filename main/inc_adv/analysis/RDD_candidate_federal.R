@@ -27,10 +27,17 @@ View(fp_df)
 #check if surname in tcp is in fp data
 search_name <- function (div, yr) {
   rerun <- c()
-  lagged_election <- ifelse(yr == 1996, 1998, yr+3)
+  # 1980, 1983, 1984, 1987
+  if(yr == 1996) {
+    next_election <- 1998
+  } else if (yr == 1983) {
+    next_election <- 1984
+  } else {
+    next_election <- yr+3
+  }
   
   tcp_rows <- tcp_df %>% filter(`division-year` == paste0(div, "-",yr))
-  fp_rows <- fp_df %>% filter(`division-year` == paste0(div, "-", lagged_election ))
+  fp_rows <- fp_df %>% filter(`division-year` == paste0(div, "-", next_election ))
   
   for (i in 1:nrow(tcp_rows)) {
     rerun[i] <- ifelse(tcp_rows$Surname[i] %in% fp_rows$Surname, 1, 0)
@@ -98,7 +105,7 @@ ggplot(subset(all_tcp_data, !is.na(incumbent)& !is.na(rerun_t1))) +
 
 # rdd sample yields substantially different ratios
 ggplot(subset(all_tcp_data, 
-              ((abs(candidate_margin_t) < 0.1)) & !is.na(incumbent) & !is.na(rerun_t1)) )  +
+              ((abs(candidate_margin_t) < 0.05)) & !is.na(incumbent) & !is.na(rerun_t1)) )  +
   geom_bar(aes(x = factor(rerun_t1), 
                fill = factor(incumbent)), 
            stat = "count", position = "dodge") +
@@ -113,10 +120,14 @@ ggplot(subset(all_tcp_data,
 
 # Of the 41% in the full sample who are incumbents, 
 # 61% choose to rerun.
-# Incumbents are 1.6 times more likely to rerun than challengers.
+# Incumbents are 1.6 times more likely to rerun than challengers,
+# but barely in rd sample.
 # compared to the 3.7 in Canada
 
 CrossTable(all_tcp_data$incumbent, all_tcp_data$rerun_t1,
+           prop.t = FALSE, prop.c = TRUE, prop.chisq = FALSE)
+CrossTable(subset(all_tcp_data, abs(candidate_margin_t) < 0.05)$incumbent, 
+           subset(all_tcp_data, abs(candidate_margin_t) < 0.05)$rerun_t1,
            prop.t = FALSE, prop.c = TRUE, prop.chisq = FALSE)
 
 ### --------------- bounds ----------------- ###
@@ -251,7 +262,7 @@ grid.arrange(
                                 "a1" = "Bare-losers would receive\n as many votes as\n bare-winners",
                                 "a2" = "Bare-losers would receive\n less than half as many votes\n as bare-winners")),
   bounds_plot_fxn(outcome_df = tcp_candidate_estimates, outcome_lab = "Winning") +
-    scale_x_continuous(limits = c(-1, .5)) + 
+    scale_x_continuous(limits = c(-.8, .6)) + 
     scale_y_discrete(labels = c("upper" = "Bare-losers would\n never win", 
                                 "unconditional" = "Unconditional\n on rerunning",
                                 "lower" = "Bare-losers would\n always win",

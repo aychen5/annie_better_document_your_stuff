@@ -38,8 +38,7 @@ if (state == "nsw" & year == 1998) {
     arrange(division_name)
   
 
-## remove redundant New Castle candidates
-clean_tcp_df <- filter(clean_tcp_df, !clean_tcp_df$last_name %in% list("GREG", "ALLAN"))
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST- CLAIR", "last_name"] <- "ST-CLAIR"
 
 } else if (state == "vic" & year == 1998) {
 ### --------------- 1998 NSW --------------- ### 
@@ -78,10 +77,10 @@ clean_fp_df <- clean_fp_df %>%
 # redisticting 
 
 # Herbert division: there are two candidates named Lindsay (last name)
-clean_fp_df[clean_fp_df$candidate_name == "Hon Ted Lindsay", "last_name"] <- "T.LINDSAY"
-clean_fp_df[clean_fp_df$candidate_name == "Peter Lindsay", "last_name"] <- "P.LINDSAY"
-clean_tcp_df[clean_tcp_df$last_name == "T", "last_name"] <- "T.LINDSAY"
-clean_tcp_df[clean_tcp_df$last_name == "P", "last_name"] <- "P.LINDSAY"
+clean_fp_df[clean_fp_df$candidate_name == "Hon Ted Lindsay", "last_name"] <- "LINDSAY"
+clean_fp_df[clean_fp_df$candidate_name == "Peter Lindsay", "last_name"] <- "LINDSAY"
+clean_tcp_df[clean_tcp_df$last_name == "T", "last_name"] <- "LINDSAY"
+clean_tcp_df[clean_tcp_df$last_name == "P", "last_name"] <- "LINDSAY"
 
 clean_tcp_df[clean_tcp_df$last_name == "M", "last_name"] <- "SMITH"
 
@@ -146,18 +145,15 @@ clean_tcp_df[clean_tcp_df$last_name == "M", "last_name"] <- "SMITH"
   clean_tcp_df[clean_tcp_df$last_name == "W", "last_name"] <- "SMITH"
 } else if (state == "nsw" & year == 1993) {
   
-  clean_tcp_df[clean_tcp_df$last_name == "B", "last_name"] <- "WOODS"
+  clean_fp_df[clean_fp_df$candidate_name == "Robert de", "last_name"] <- "FEGELY"
   
-} else if (state == "vic" & year == 1993) {
-  clean_tcp_df[clean_tcp_df$division_name == "MELBOURNE", "candidate_name"] <- c("Lindsay TANNER", "Riza Kozanoglu")
-  clean_tcp_df[clean_tcp_df$division_name == "MELBOURNE", "last_name"] <- c("TANNER", "KOZANOGLU")
-  clean_tcp_df[clean_tcp_df$division_name == "MELBOURNE", "tcp_vote_share"] <- c(73.7, 26.3)
+} else if (state == "vic" & year == 1996) {
   
-} else if (state == "tas" & year == 1993) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-ONE", "last_name"] <- "STONE"
+} else if (state == "sa" & year == 1993) {
 
 
-clean_tcp_df[clean_tcp_df$last_name == "S", "last_name"] <- "SMITH"
-clean_tcp_df[clean_tcp_df$last_name == "W", "last_name"] <- "SMITH"
+clean_fp_df[clean_fp_df$candidate_name == "Marco de", "last_name"] <- "CHELLIS"
 
 
 }  else if (state == "act" & year == 1993) {
@@ -207,7 +203,7 @@ clean_tcp_df[clean_tcp_df$candidate_name == "David Currie", "last_name"] <- "CUR
   clean_tcp_df[clean_tcp_df$candidate_name == "D Williams", "last_name"] <- "WILLIAMS"
 }else if (state == "vic" & year == 2001) {
 
-clean_tcp_df[clean_tcp_df$candidate_name == "ST-ONE *", "last_name"] <- "STONE"
+clean_tcp_df[clean_tcp_df$candidate_name == "ST-ONE", "last_name"] <- "STONE"
 
 } else if (state == "sa" & year == 2001) {
   
@@ -252,4 +248,58 @@ clean_fp_df <- clean_fp_df %>%
 clean_tcp_df[clean_tcp_df$last_name == "S", "last_name"] <- "SMITH"
 clean_tcp_df[clean_tcp_df$last_name == "W", "last_name"] <- "SMITH"
 
+}else if (state == "vic" & year == 1990) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "ST-APLES", "last_name"] <- "STAPLES"
+  
+
+} else if (state == "nsw" & year == 1987) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "RUSSELL", "last_name"] <- "GORMAN"
+  clean_tcp_df[clean_tcp_df$last_name == "ALAN", "last_name"] <- "CADMAN"
+  clean_tcp_df[clean_tcp_df$last_name == "WARREN", "last_name"] <- "MUSGRAVE"
+  clean_tcp_df[clean_tcp_df$last_name == "GEOFF", "last_name"] <- "ROBINSON"
+  clean_tcp_df[clean_tcp_df$last_name == "NOEL", "last_name"] <- "HICKS"
+  clean_tcp_df[clean_tcp_df$last_name == "PETER", "last_name"] <- "BLACK"
+  clean_tcp_df[clean_tcp_df$last_name == "DAVID", "last_name"] <- "BROCK"
+  clean_tcp_df[clean_tcp_df$last_name == "HON", "last_name"] <- "KERIN"
+  
+} else if (state == "vic" & year == 1987) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "ST-APLES", "last_name"] <- "STAPLES"
+} else if (state == "vic" & year == 1984) {
+  
+  clean_fp_df[clean_fp_df$candidate_name == "Bill de", "last_name"] <- "VINK"
+} else if (state == "wa" & year == 1984) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "RITA", "last_name"] <- "WATERS"
+  clean_tcp_df[clean_tcp_df$last_name == "ALLEN", "last_name"] <- "BLANCHARD"
+} else if (state == "nt" & year == 1983) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "ROSLYN", "last_name"] <- "KELLY"
+  clean_tcp_df[clean_tcp_df$last_name == "JOANNE", "last_name"] <- "HANSEN"
+  clean_tcp_df[clean_tcp_df$last_name == "KEVIN", "last_name"] <- "WISE"
+  clean_tcp_df[clean_tcp_df$last_name == "ROHAN", "last_name"] <- "GREENLAND"
+} else if (state == "tas" & year == 1983) {
+  
+  clean_tcp_df[clean_tcp_df$last_name == "NEWMAN *", "last_name"] <- "NEWMAN"
+  clean_tcp_df[clean_tcp_df$last_name == "GROOM *", "last_name"] <- "GROOM"
+} else if (state == "qld" & year == 1983) {
+  
+  clean_fp_df[clean_fp_df$candidate_name == "Hon Sir James", "last_name"] <- "KILLEN"
+} else if (state == "vic" & year == 1983) {
+
+clean_tcp_df[clean_tcp_df$last_name == "ST-APLES", "last_name"] <- "STAPLES"
+clean_tcp_df[clean_tcp_df$last_name == "ST-EEDMAN", "last_name"] <- "STEEDMAN"
+
+} else if (state == "nsw" & year == 1983) {
+clean_tcp_df[clean_tcp_df$last_name == "NEW", "last_name"] <- "SMITH"
+
+}else if (state == "nsw" & year == 1980) {
+ 
+
 }
+
+
+
+

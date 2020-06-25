@@ -9,7 +9,7 @@ fourline_divs_fxn <- function (data = lines[[1]], state) {
     if( str_detect(data[i], paste0("[[:upper:]], ", state)) ) {
       index <- 1
       print( data[i] )
-      while( !str_detect(data[i - index], ">   |===")) {
+      while( !str_detect(data[i - index], ">   |===| informal")) {
         print(if_else(str_detect(data[i - index], "---"), 1, 0))
         index <- index + 1
       }

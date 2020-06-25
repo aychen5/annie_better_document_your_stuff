@@ -7,7 +7,7 @@ read_old_fxn <- function (year) {
   
   #type <- ifelse(data_type == "fp", "fp-", "tcp-")
                  
-  all_states <- list.files(file.path(path, year), pattern = "tcp-")
+  all_states <- list.files(file.path(path, year), pattern = "fp-")
   
   # read in all the data
   readin_files <- function (file, year) {
@@ -25,8 +25,9 @@ read_old_fxn <- function (year) {
   return(all_data)
 }
 
-#1980, 1983, 1984, 1987,
-years <- c( seq(from = 1990, to = 1998, by = 3), 1998, 2001)
+#1951, 1955, 1958, 961, 1963, 1966, 1972, 1975, 1977, 1980, 1983, 1984, 1987,
+#1990 1993 1996 1998 2001
+years <- c(1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
 
 all_data <- map(years, read_old_fxn) %>% 
   do.call(what = rbind) %>% 
@@ -38,7 +39,8 @@ all_data <- map(years, read_old_fxn) %>%
   mutate(PartyAb = case_when(candidate_party == "ALP" ~ "ALP",
                       candidate_party %in% list("NPA", "Lib", "CLP") ~ "LNP",
                       candidate_party == "Grn" ~ "GRN",
-                      candidate_party == "ON" ~ "ON"))  
+                      candidate_party == "ON" ~ "ON"),
+         tcp_vote_share = as.numeric(tcp_vote_share))  
 
 # add rdd variables
 tcp_old <- all_data %>% 
@@ -95,7 +97,7 @@ tcp_data <- tcp_data %>%
 
 #------------ GET FP DATA ----------# 
 
-years <- c(seq(from = 1990, to = 1998, by = 3), 1998, 2001)
+years <- c(1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
 fp_old <- map(years, function(year) {read_old_fxn(year)}) %>% 
   do.call(what = rbind) %>% 
   arrange(division_name, desc(year)) %>% 
@@ -128,12 +130,12 @@ fp_data <- bind_rows(fp_new, fp_old) %>%
 
 tpp_old <- tcp_old %>% 
   rename(DivisionNm = division) %>% 
-  mutate(alp_margin_t = ifelse(PartyAb == "ALP", candidate_margin_t/100, NA),
-         lnp_margin_t = ifelse(PartyAb == "LNP", candidate_margin_t/100, NA),
-         alp_vs = ifelse(PartyAb == "ALP", tcp_vote_share/100, NA),
-         lnp_vs = ifelse(PartyAb == "LNP", tcp_vote_share/100, NA),
-         alp_fp = ifelse(PartyAb == "ALP", fp_vote_share/100, NA),
-         lnp_fp = ifelse(PartyAb == "LNP", fp_vote_share/100, NA),
+  mutate(alp_margin_t = ifelse(PartyAb == "ALP", candidate_margin_t, NA),
+         lnp_margin_t = ifelse(PartyAb == "LNP", candidate_margin_t, NA),
+         alp_vs = ifelse(PartyAb == "ALP", tcp_vote_share, NA),
+         lnp_vs = ifelse(PartyAb == "LNP", tcp_vote_share, NA),
+         alp_fp = ifelse(PartyAb == "ALP", fp_vote_share, NA),
+         lnp_fp = ifelse(PartyAb == "LNP", fp_vote_share, NA),
          DivisionID = NA, 
          Swing = NA) %>% 
   group_by(DivisionNm, year) %>%  
@@ -163,18 +165,30 @@ tpp_old <- tcp_old %>%
           )
 
 ### merge to new tpp data (after 2001)
-all_tpp <- tpp_data %>% 
+tpp_data <- tpp_data %>% 
   select(-c(setdiff(colnames(tpp_data), colnames(tpp_old)))) %>% 
   bind_rows(tpp_old) %>% 
   arrange(DivisionNm)
 
 View(tpp_old)
 View(tpp_data)
-View(all_tpp)
+# ---------- add ideology data ------------------- #
+
+mrp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/mrp.csv") %>% 
+  mutate(DivisionNm = toupper(division),
+         division = toupper(division)) %>% 
+  select(c(model_div_pref, DivisionNm, division))
+
+all_tpp <- merge(tpp_data, mrp_data %>% select(c(model_div_pref, DivisionNm)), by = "DivisionNm")
+all_tcp <- merge(tcp_data, mrp_data %>% select(c(model_div_pref, division)), by = "division")
+all_fp <- merge(fp_data, mrp_data %>% select(c(model_div_pref, division)), by = "division")
+
+
+
 
 #------------ SAVE CLEAN DATA  ----------# 
 
-write.csv(tcp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
 write.csv(all_tpp, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
-write.csv(fp_data, "~/Dropbox/Thesis/inc_adv/clean_data/fp_data.csv")
+write.csv(all_tcp, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
+write.csv(all_fp, "~/Dropbox/Thesis/inc_adv/clean_data/fp_data.csv")
 
