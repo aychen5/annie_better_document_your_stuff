@@ -24,10 +24,11 @@ read_old_fxn <- function (year) {
   
   return(all_data)
 }
-
-#1951, 1955, 1958, 961, 1963, 1966, 1972, 1975, 1977, 1980, 1983, 1984, 1987,
+#1951, 1954, 1955, 1958, 1961, 1963, 1966, 1969, 
+#1972, 1974, 1975, 1977, 1980, 1983, 1984, 1987...
 #1990 1993 1996 1998 2001
-years <- c(1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
+years <- c(1955, 1958, 1961, 1963, 1966, 1969, 1972, 1974, 1975, 1977,
+           1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
 
 all_data <- map(years, read_old_fxn) %>% 
   do.call(what = rbind) %>% 
@@ -82,14 +83,16 @@ tcp_old <- all_data %>%
                                        NA)),
                          NA)) %>% 
   rename(TotalVotes = vote_count) %>% 
-  mutate(incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0)) %>% 
+  mutate(incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0),
+         alp_incumbent = ifelse(incumbent == 1 & PartyAb == "ALP",1, 0),
+         lnp_incumbent = ifelse(incumbent == 1 & PartyAb == "LNP",1, 0)) %>% 
   group_by(division, year) %>% 
   mutate(open_seat = ifelse(incumbent == 0 & (lag(incumbent == 0) | lead(incumbent == 0)), 1, 0),
          open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat)) %>% 
   select(-Surname, everything()) 
 
 ### merge with new tcp data
-tcp_data <- tcp_data %>% 
+tcp_data <- tcp_new %>% 
   bind_rows(tcp_old) %>% 
   mutate(division = toupper(division)) %>% 
   arrange(division, desc(year)) %>% 
@@ -97,7 +100,8 @@ tcp_data <- tcp_data %>%
 
 #------------ GET FP DATA ----------# 
 
-years <- c(1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
+years <- c(1955, 1958, 1961, 1963, 1966, 1969, 1972, 1974, 1975, 1977,
+           1980, 1983, seq(from = 1984, to = 1998, by = 3), 1998, 2001)
 fp_old <- map(years, function(year) {read_old_fxn(year)}) %>% 
   do.call(what = rbind) %>% 
   arrange(division_name, desc(year)) %>% 
@@ -146,29 +150,35 @@ tpp_old <- tcp_old %>%
   fill(alp_fp, .direction = "downup") %>% 
   fill(lnp_fp, .direction = "downup") %>% 
   mutate(alp_win_t = ifelse(alp_margin_t > 0, 1, 0),
-         lnp_win_t = ifelse(lnp_margin_t > 0, 1, 0)) %>% 
+         lnp_win_t = ifelse(lnp_margin_t > 0, 1, 0)) %>%
   filter(PartyAb == "ALP") %>% 
+  arrange(DivisionNm, desc(year)) %>% 
   group_by(DivisionNm) %>% 
-  mutate( alp_win_t0 = dplyr::lag(alp_win_t, default = 0),
-          alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
+  mutate( alp_win_t0 = dplyr::lag(alp_win_t, default = NA),
+          alp_win_t1 = dplyr::lead(alp_win_t, default = NA),
           alp_vs_t0 = dplyr::lag(alp_vs, default = NA),
           alp_vs_t1 = dplyr::lead(alp_vs, default = NA),
+          alp_fp_t0 = dplyr::lag(alp_fp, default = NA),
           alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
-          alp_incumbent = dplyr::lead(alp_win_t, default = 0),
+          alp_incumbent = dplyr::lag(alp_win_t, default = NA),
           # do same for liberal-national coalition
-          lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
-          lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
+          lnp_win_t0 = dplyr::lag(lnp_win_t, default = NA),
+          lnp_win_t1 = dplyr::lead(lnp_win_t, default = NA),
           lnp_vs_t0 = dplyr::lag(lnp_vs, default = NA),
           lnp_vs_t1 = dplyr::lead(lnp_vs, default = NA),
+          lnp_fp_t0 = dplyr::lag(lnp_fp, default = NA),
           lnp_fp_t1 = dplyr::lead(lnp_fp, default = NA),
-          lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
-          )
+          lnp_incumbent = dplyr::lag(lnp_win_t, default = NA)
+  ) 
 
 ### merge to new tpp data (after 2001)
-tpp_data <- tpp_data %>% 
-  select(-c(setdiff(colnames(tpp_data), colnames(tpp_old)))) %>% 
+
+tpp_data <- tpp_new %>% 
+  select(-c(setdiff(colnames(tpp_new), colnames(tpp_old)))) %>% 
   bind_rows(tpp_old) %>% 
-  arrange(DivisionNm)
+  arrange(DivisionNm) 
+  
+
 
 View(tpp_old)
 View(tpp_data)

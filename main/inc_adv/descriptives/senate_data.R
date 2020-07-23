@@ -10,8 +10,8 @@ readin_files <- function (year) {
 }
 
 years <-  seq(from = 2004, to = 2019, by = 3)
-data <- map(years, readin_files)
-names(data) <- paste0("fp_senate_", years)
+senate_dat <- map(years, readin_files)
+names(senate_dat) <- paste0("fp_senate_", years)
 
 
 # compute division-level totals and % for each party
@@ -25,7 +25,7 @@ clean_senate <- function(data) {
     mutate(p = total/sum(total)*100)
   return(out)
 }
-senate <- map(data, clean_senate)
+senate <- map(senate_dat, clean_senate)
 
 
 # map senate and house party names and make them consistent across division
@@ -92,7 +92,23 @@ house_fxn <- function (data, senate_df) {
 }
  
 snt_hse <- house_fxn(data = fps$fp_federal_2019,
-           senate_df = all_senate$fp_senate_2019)
+           senate_df = all_senate$fp_senate_2019) %>%
+  mutate(year = 2019) %>% 
+  bind_rows(house_fxn(data = fps$fp_federal_2016,
+                      senate_df = all_senate$fp_senate_2016) %>%
+              mutate(year = 2016))%>% 
+  bind_rows(house_fxn(data = fps$fp_federal_2013,
+                      senate_df = all_senate$fp_senate_2013) %>%
+              mutate(year = 2013))%>% 
+  bind_rows(house_fxn(data = fps$fp_federal_2010,
+                      senate_df = all_senate$fp_senate_2010) %>%
+              mutate(year = 2010))%>% 
+  bind_rows(house_fxn(data = fps$fp_federal_2007,
+                      senate_df = all_senate$fp_senate_2007) %>%
+              mutate(year = 2007))
+
+write.csv(snt_hse, "~/Dropbox/Thesis/inc_adv/clean_data/personal_vote.csv")
+
 
 # drop Coalition House candidates in three-cornered contests 
 # but where the Coalition ran a joint Senate ticket
@@ -100,7 +116,7 @@ tcc <- snt_hse %>%
   group_by(division,Party) %>% 
   summarise(n=n()) %>% 
   ungroup() %>% 
-  filter(Party=="LNP",n>1)
+  filter(Party=="LNP", n>1)
 
 snt_hse <- anti_join(snt_hse,
                   tcc,

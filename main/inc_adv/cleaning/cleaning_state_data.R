@@ -88,7 +88,6 @@ fp_states <- temp_fp_states %>%
   mutate(state_fp_vote = votes/district_vote_total) %>% 
   arrange(district_name, desc(year))
 
-View(fp_states)
 
 ### ------------- merge fp data to tcp data and add rdd variables ----------- ###
 tcp_states_data <- fp_states %>% 
@@ -132,7 +131,7 @@ tcp_states_data <- fp_states %>%
          open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat)) %>% 
   select(-surname, everything()) 
 
-View(tcp_states_data)
+#View(tcp_states_data)
 
 ### ------------- convert tcp to tpp data ----------- ###
 
@@ -153,22 +152,24 @@ tpp_states_data <- tcp_states_data %>%
   fill(state_lnp_margin_t, .direction = "downup") %>% 
   fill(state_alp_fp, .direction = "downup") %>% 
   fill(state_lnp_fp, .direction = "downup") %>% 
-  mutate(state_alp_win_t = ifelse(state_alp_margin_t > 0, 1, 0),
-         state_lnp_win_t = ifelse(state_lnp_margin_t > 0, 1, 0)) %>% 
+  mutate(state_alp_win_t = ifelse(state_alp_vs > 0.5, 1, 0),
+         state_lnp_win_t = ifelse(state_lnp_vs > 0.5, 1, 0)) %>% 
+  filter(partyab == "ALP") %>% 
+  arrange(district_name, desc(year)) %>% 
   group_by(district_name) %>% 
-  mutate( state_alp_win_t0 = dplyr::lag(state_alp_win_t, default = 0),
-          state_alp_win_t1 = dplyr::lead(state_alp_win_t, default = 0),
+  mutate( state_alp_win_t0 = dplyr::lag(state_alp_win_t, default = NA),
+          state_alp_win_t1 = dplyr::lead(state_alp_win_t, default = NA),
           state_alp_vs_t0 = dplyr::lag(state_alp_vs, default = NA),
           state_alp_vs_t1 = dplyr::lead(state_alp_vs, default = NA),
           state_alp_fp_t1 = dplyr::lead(state_alp_fp, default = NA),
-          state_alp_incumbent = dplyr::lead(state_alp_win_t, default = 0),
+          state_alp_incumbent = dplyr::lag(state_alp_win_t, default = NA),
           # do same for liberal-national coalition
-          state_lnp_win_t0 = dplyr::lag(state_lnp_win_t, default = 0),
-          state_lnp_win_t1 = dplyr::lead(state_lnp_win_t, default = 0),
+          state_lnp_win_t0 = dplyr::lag(state_lnp_win_t, default = NA),
+          state_lnp_win_t1 = dplyr::lead(state_lnp_win_t, default = NA),
           state_lnp_vs_t0 = dplyr::lag(state_lnp_vs, default = NA),
           state_lnp_vs_t1 = dplyr::lead(state_lnp_vs, default = NA),
           state_lnp_fp_t1 = dplyr::lead(state_lnp_fp, default = NA),
-          state_lnp_incumbent = dplyr::lead(state_lnp_win_t, default = 0)
+          state_lnp_incumbent = dplyr::lag(state_lnp_win_t, default = NA)
   )
 
 ### ------- save data --------- ###

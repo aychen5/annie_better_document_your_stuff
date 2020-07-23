@@ -3,23 +3,182 @@ pacman::p_load(tidyverse, readxl)
 
 
 ### --------------- PARTY-LEVEL ANALYSIS ----------------- ###
-state_tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_state_data.csv") %>% 
-  filter(partyab == "ALP")
+state_tpp_data <- read_csv("~/Dropbox/Thesis/inc_adv/clean_data/tpp_state_data.csv")  
 
 #vote share in next state election
 outcomes <- list(state_tpp_data$state_alp_vs_t1, 
               state_tpp_data$state_alp_win_t1, 
               state_tpp_data$state_alp_fp_t1)
+state_rdd <- list()
 for (y in 1:length(outcomes)){
-  rdrobust(y = outcomes[[y]],
+  state_rdd[[y]] <- rdrobust(y = outcomes[[y]],
            x = state_tpp_data$state_alp_vs,
            kernel = "triangular",
            bwselect = 'msetwo',
            c = 0.5, p = 1,
            all = TRUE,
-           cluster = state_tpp_data$district_id) %>% 
-    summary()
+           cluster = state_tpp_data$district_id)
 }
+outcomes_lnp <- list(state_tpp_data$state_lnp_vs_t1, 
+                 state_tpp_data$state_lnp_win_t1, 
+                 state_tpp_data$state_lnp_fp_t1)
+state_rdd_lnp <- list()
+for (y in 1:length(outcomes_lnp)){
+  state_rdd_lnp[[y]] <- rdrobust(y = outcomes_lnp[[y]],
+                             x = state_tpp_data$state_lnp_vs,
+                             kernel = "triangular",
+                             bwselect = 'msetwo',
+                             c = 0.5, p = 1,
+                             all = TRUE,
+                             cluster = state_tpp_data$district_id)
+}
+
+###--------------- table ----------------- ###
+
+state_tbl_fxn <- function (data) {
+  state_tbl <- data.frame(Outcome = c("Two-Party Preferences", "Probability of Winning", "First Preferences"),
+           # these are bias-corrected, robust estimates
+           RD_estimate = c(data[[1]]$coef[3],
+                           data[[2]]$coef[3],
+                           data[[3]]$coef[3]),
+           CI_l = c(data[[1]]$ci[3],
+                    data[[2]]$ci[3],
+                    data[[3]]$ci[3]),
+           CI_u = c(data[[1]]$ci[6],
+                    data[[2]]$ci[6],
+                    data[[3]]$ci[6]),
+           bwth_l = c(data[[1]]$bws[1],
+                      data[[2]]$bws[1],
+                      data[[3]]$bws[1]),
+           bwth_r = c(data[[1]]$bws[3],
+                      data[[2]]$bws[3],
+                      data[[3]]$bws[3]),
+           # effective number of obs 
+           eff_N_l = c(data[[1]]$N_h[1],
+                       data[[2]]$N_h[1],
+                       data[[3]]$N_h[1]),
+           eff_N_r = c(data[[1]]$N_h[2],
+                       data[[2]]$N_h[2],
+                       data[[3]]$N_h[2])
+) %>% 
+  mutate(CIs = paste0("[", round(CI_l, 2), "; ",  round(CI_u, 2), "]"),
+         Eff_N = paste0("[", eff_N_l, "; ", eff_N_r, "]"),
+         Bandwidth = paste0("(", round(bwth_l, 2), ", ", round(bwth_r, 2), ")")) %>% 
+  select(Outcome, RD_estimate, CIs, Bandwidth, Eff_N) %>% 
+  slice(rep(1:n(), each = 2)) %>% 
+  mutate(RD_estimate = ifelse(row_number() %% 2 == 1, round(RD_estimate, 4), CIs),
+         Outcome = ifelse(row_number() %% 2 == 1, Outcome, NA),
+         Bandwidth = ifelse(row_number() %% 2 == 1, Bandwidth, NA),
+         Eff_N = ifelse(row_number() %% 2 == 1, Eff_N, NA)) %>% 
+  select(-CIs)
+
+
+colnames(state_tbl) <- c("Outcome", "RD Estimate", "Bandwidths\n [L; R]", "Effective Num. Obs.\n [L; R]")
+stargazer(state_tbl, 
+          style = 'apsr',
+          summary = FALSE,
+          notes = "Brackets below RD coefficients represent 95% confidence intervals.")
+}
+
+state_tbl_fxn(data = state_rdd)
+state_tbl_fxn(data = state_rdd_lnp)
+
+
+###--------------- plots -----------------  ###
+
+
+
+### plots ###
+my_rdplot_fxn <- function(outcome, running, type,
+                          covars, 
+                          xlab, ylab) {
+  
+  rd_obj <- rdplot(outcome, 
+                   running, 
+                   c = 0.5, p = 3,
+                   hide = TRUE,
+                   covs = covars,
+                   binselect = "qsmv",  
+                   kernel = "triangular")
+  
+  rd_poly <- rd_obj$vars_poly 
+  rd_bins <- rd_obj$vars_bins %>% 
+    filter(round(rdplot_mean_x, 3) != 0.50)
+  
+  p <- ggplot() +
+  geom_errorbar(aes(ymin = pmax(rd_bins$rdplot_ci_l, 0), 
+                    ymax = pmin(1, rd_bins$rdplot_ci_r),
+                    x = rd_bins$rdplot_mean_x),
+                color = "#38A79F") +
+  geom_point(data = rd_bins, aes(x = rdplot_mean_x,
+                                 y = rdplot_mean_y),
+             size = 2.5, shape = 16, color = "#325D80") +
+    geom_line(aes(x = rd_poly$rdplot_x[which(rd_poly$rdplot_x < 0.5)], 
+                  y = rd_poly$rdplot_y[which(rd_poly$rdplot_x < 0.5)]),
+              color = "#E0485A", size = 1) +
+    geom_line(aes(x = rd_poly$rdplot_x[which(rd_poly$rdplot_x > 0.5)],
+                  y = rd_poly$rdplot_y[which(rd_poly$rdplot_x > 0.5)]),
+              color = "#E0485A", size = 1) +
+    labs(x = xlab,
+         y = ylab) +
+    geom_vline(xintercept = 0.5, size = 1) +  
+    scale_x_continuous(limits = c(0.35, .65)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  if (type %in% c("tcp", "tpp")) {
+    p +  scale_y_continuous(limits = c(0.15, .75)) 
+  } else if (type == "fp") {
+    p +  scale_y_continuous(limits = c(0.15, .75))
+  } else {
+    p + scale_y_continuous(limits = c(0, 1)) 
+  }
+}
+
+
+
+
+grid.arrange(
+  # Find function in RDD_party_federal.R
+my_rdplot_fxn(state_tpp_data$state_alp_fp_t1,
+              state_tpp_data$state_alp_vs,
+              covars = state_tpp_data$state_alp_incumbent,
+              type = "fp",
+              xlab = "ALP Vote Share (t)",
+              ylab = "First Preference Vote Share (t + 1)"),
+my_rdplot_fxn(state_tpp_data$state_lnp_fp_t1,
+              state_tpp_data$state_lnp_vs,
+              covars = state_tpp_data$state_alp_incumbent,
+              type = "fp",
+              xlab = "Coaltion Vote Share (t)",
+              ylab = "First Preference Vote Share (t + 1)"),
+my_rdplot_fxn(state_tpp_data$state_alp_vs_t1,
+              state_tpp_data$state_alp_vs,
+              covars = state_tpp_data$state_alp_incumbent,
+              type = "tpp",
+              xlab = "ALP Vote Share (t)",
+              ylab = "Two-Party Vote Share (t + 1)"),
+my_rdplot_fxn(state_tpp_data$state_lnp_vs_t1,
+              state_tpp_data$state_lnp_vs,
+              covars = state_tpp_data$state_lnp_incumbent,
+              type = "tpp",
+              xlab = "Coaltion Vote Share (t)",
+              ylab = "Two-Party Vote Share (t + 1)"),
+my_rdplot_fxn(state_tpp_data$state_alp_win_t1,
+              state_tpp_data$state_alp_vs,
+              covars = state_tpp_data$state_lnp_incumbent,
+              type = "win",
+              xlab = "ALP Vote Share (t)",
+              ylab = "Probability of Winning (t + 1)"),
+my_rdplot_fxn(state_tpp_data$state_lnp_win_t1,
+              state_tpp_data$state_lnp_vs,
+              covars = state_tpp_data$state_lnp_incumbent,
+              type = "win",
+              xlab = "Coaltion Vote Share (t)",
+              ylab = "Probability of Winning (t + 1)"),
+nrow = 3
+)
+
 
 
 ### --------------- CANDIDATE-LEVEL ANALYSIS ----------------- ###
@@ -149,8 +308,9 @@ CrossTable(all_state_tcp$incumbent, all_state_tcp$state_rerun_t1,
   prob_rerun <- mean(close_winners$state_rerun_t1, na.rm = TRUE)
   
   # ii) unconditional RD effect on fps
-  uncond <- rdrobust(y = all_state_tcp$state_candidate_win_t1,
-                     #y = all_state_tcp$state_candidate_win_t1,
+  uncond <- rdrobust(#y = all_state_tcp$state_cand_fp_t1,
+                     #y = all_state_tcp$state_tcp_t1,
+                     y = all_state_tcp$state_candidate_win_t1,
                      x = all_state_tcp$state_tcp_vote,
                      kernel = "triangular",
                      bwselect = 'msetwo',
@@ -185,10 +345,14 @@ CrossTable(all_state_tcp$incumbent, all_state_tcp$state_rerun_t1,
     # a1_bound <- mean(close_winners$state_fp_vote, na.rm = TRUE)
     # a2_bound <- mean(close_winners$state_fp_vote, na.rm = TRUE)/2
 
+    # a1_bound <- mean(close_winners$state_tcp_t1, na.rm = TRUE)
+    # a2_bound <- mean(close_winners$state_tcp_t1, na.rm = TRUE)/2
+
     a1_bound <- mean(close_winners$state_candidate_win_t1, na.rm = TRUE)
     a2_bound <- mean(close_winners$state_candidate_win_t1, na.rm = TRUE)/2
 
-  
+
+    # 
   # put together, effect on fp
   candidate_estimates <- data.frame(
     coef_est = c(
@@ -230,6 +394,7 @@ CrossTable(all_state_tcp$incumbent, all_state_tcp$state_rerun_t1,
     return(c(lw, up))
   }
   
+  ### --------------- plot ----------------- ###
   candidate_estimates_win <- candidate_estimates %>% 
     mutate(lower_ci = c(ci_fxn(bound_type = "unconditional")[1],
                         ci_fxn(bound_type = "lower")[1],
@@ -253,22 +418,42 @@ CrossTable(all_state_tcp$incumbent, all_state_tcp$state_rerun_t1,
       geom_vline(xintercept = 0, lty = 2) +
       labs(x = paste0("RD Effect on ", outcome_lab," in the Next State Election"), y = "") +
       scale_color_manual(name = "", labels = c("unconditional\n RD estimate",
-                                               "upper and lower\n bounds",
+                                               "conditional\n bounds",
                                                "assumptions on\n upper bound"),
                          values = c("#38A79F",
                                     "#E0485A", 
                                     "#325D80")) +
-      theme_classic() +
+      theme_bw() +
       theme(legend.position = "bottom",
             legend.justification = "right",
             aspect.ratio = 1/2)
   }
-
+  
   grid.arrange(
-  bounds_plot_fxn(outcome_df = candidate_estimates_fp, outcome_lab = "First Preferences"),
-  bounds_plot_fxn(outcome_df = candidate_estimates_win, outcome_lab = "Winning")
+  bounds_plot_fxn(outcome_df = candidate_estimates_fp, outcome_lab = "First Preferences")+
+    scale_x_continuous(limits = c(-.7, .5)) + 
+    scale_y_discrete(labels = c("upper" = "Bare-losers would\n receive no votes", 
+                                "unconditional" = "Unconditional\n on rerunning",
+                                "lower" = "Bare-losers would\n receive every vote",
+                                "a1" = "Bare-losers would receive\n as many votes as\n bare-winners",
+                                "a2" = "Bare-losers would receive\n less than half as many votes\n as bare-winners")),
+  bounds_plot_fxn(outcome_df = candidate_estimates_tcp, outcome_lab = "Two-candidate Preferences")+
+    scale_x_continuous(limits = c(-.7, .5)) + 
+    scale_y_discrete(labels = c("upper" = "Bare-losers would\n receive no votes", # this is impossible
+                                "unconditional" = "Unconditional\n on rerunning",
+                                "lower" = "Bare-losers would\n receive every vote",  # so is this
+                                "a1" = "Bare-losers would receive\n as many votes as\n bare-winners",
+                                "a2" = "Bare-losers would receive\n less than half as many votes\n as bare-winners")),
+  bounds_plot_fxn(outcome_df = candidate_estimates_win, outcome_lab = "Winning")+
+    scale_x_continuous(limits = c(-.7, 1)) + 
+    scale_y_discrete(labels = c("upper" = "Bare-losers would\n never win", 
+                                "unconditional" = "Unconditional\n on rerunning",
+                                "lower" = "Bare-losers would\n always win",
+                                "a1" = "Bare-losers would win\n as often as bare-winners",
+                                "a2" = "Bare-losers would win\n half as often as bare-winners"))
   )
   
+
+
+
   
-
-

@@ -295,11 +295,88 @@ clean_tcp_df[clean_tcp_df$last_name == "ST-EEDMAN", "last_name"] <- "STEEDMAN"
 } else if (state == "nsw" & year == 1983) {
 clean_tcp_df[clean_tcp_df$last_name == "NEW", "last_name"] <- "SMITH"
 
-}else if (state == "nsw" & year == 1980) {
- 
+}else if (state == "vic" & year == 1977) {
+  clean_tcp_df[clean_tcp_df$last_name == "ST-ALEY", "last_name"] <- "STALEY"
+
+} else if (state == "vic" & year == 1972) {
+  clean_tcp_df[clean_tcp_df$last_name == "ST-ALEY", "last_name"] <- "STALEY"
+  
+} else if (state == "act" & year == 1972) {
+  act_df <- data.frame(candidate_name = c(
+                         "Keppel Enderby",         
+                         "Peter Hughes"
+                         ),   
+                       other = NA,
+                       division_name = "ACT",
+                       state = "ACT",
+                       year = 1972,
+                       last_name = c("ENDERBY", "HUGHES"),
+                      tcp_vote_share = as.character(c(52.1, 47.9))
+  )
+  
+  # attach to main df
+  clean_tcp_df <- act_df 
+} else if (state == "vic" & year == 1966) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-REET", "last_name"] <- "STREET"
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-OKES *", "last_name"] <- "STOKES"
+} else if (state == "nt" & year == 1963) {
+  #nelson ran unopposed in 1963
+  nt_df <- data.frame(candidate_name.y = c(
+    "John Nelson",         
+    NA
+  ),   
+  other = NA,
+  division_name = "NORTHERN TERRITORY",
+  state = "NT",
+  year = 1963,
+  incumbent = 0,
+  candidate_party = "ALP",
+  vote_count = NA,
+  fp_vote_share = NA,
+  last_name = c("NELSON", NA),
+  tcp_vote_share = as.character(c(100.0, NA))
+  )
+  
+  # attach to main df
+  clean_tcp_df <- nt_df 
+
+} else if (state == "vic" & year == 1972) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-OKES", "last_name"] <- "STOKES"
+  
+  
+} else if (state == "vic" & year == 1961) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-OKES", "last_name"] <- "STOKES"
+  
+  
+}else if (state == "vic" & year == 1958) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-OKES", "last_name"] <- "STOKES"
+  
+  
+}else if (state == "vic" & year == 1955) {
+  clean_tcp_df[clean_tcp_df$candidate_name == "ST-OKES", "last_name"] <- "STOKES"
+  
+  
+}else if (state == "nt" & year == 1955) {
+
+#nelson ran unopposed in 1963
+nt_df <- data.frame(candidate_name.y = c(
+  "John Nelson",         
+  NA
+),   
+other = NA,
+division_name = "NORTHERN TERRITORY",
+state = "NT",
+year = 1963,
+incumbent = 0,
+candidate_party = "ALP",
+vote_count = NA,
+fp_vote_share = NA,
+last_name = c("NELSON", NA),
+tcp_vote_share = as.character(c(100.0, NA))
+)
+
+# attach to main df
+clean_tcp_df <- nt_df 
 
 }
-
-
-
 

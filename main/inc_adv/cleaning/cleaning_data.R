@@ -115,28 +115,28 @@ tpp_filtered_data <- samedist_fxn(tpps$tpp_federal_2019, tpps$tpp_federal_2016) 
 
 temp_tpp <- tpp_filtered_data %>% 
   # this is variable for win in current year
-  mutate(alp_win_t = if_else(alp_margin_t > 0, 1, 0),
-         lnp_win_t = if_else(lnp_margin_t > 0, 1, 0))%>% 
+  mutate(alp_win_t = if_else(alp_vs > 0.5, 1, 0),
+         lnp_win_t = if_else(lnp_vs > 0.5, 1, 0))%>% 
   # add incumbency variable
   arrange(division) %>% 
   group_by(division) %>% 
   mutate(
     # variable for win in previous election t-1
-    alp_win_t0 = dplyr::lag(alp_win_t, default = 0),
+    alp_win_t0 = dplyr::lag(alp_win_t, default = NA),
     # variable for win in next year t+1
-    alp_win_t1 = dplyr::lead(alp_win_t, default = 0),
+    alp_win_t1 = dplyr::lead(alp_win_t, default = NA),
     # variable for margin of victory in previous election t-1
     alp_vs_t0 = dplyr::lag(alp_vs, default = NA),
     # variable for margin of victory in next year t+1
     alp_vs_t1 = dplyr::lead(alp_vs, default = NA),
-    # variable for incumbent status in current election
-    alp_incumbent = dplyr::lead(alp_win_t, default = 0),
+    # variable for incumbent status in current election (means winning last election)
+    alp_incumbent = dplyr::lag(alp_win_t, default = NA),
     # do same for liberal-national coalition
-    lnp_win_t0 = dplyr::lag(lnp_win_t, default = 0),
-    lnp_win_t1 = dplyr::lead(lnp_win_t, default = 0),
+    lnp_win_t0 = dplyr::lag(lnp_win_t, default = NA),
+    lnp_win_t1 = dplyr::lead(lnp_win_t, default = NA),
     lnp_vs_t0 = dplyr::lag(lnp_vs, default = NA),
     lnp_vs_t1 = dplyr::lead(lnp_vs, default = NA),
-    lnp_incumbent = dplyr::lead(lnp_win_t, default = 0)
+    lnp_incumbent = dplyr::lag(lnp_win_t, default = NA)
     )
 
 # I just realized that there's a truncation/censorship problem here?!
@@ -226,7 +226,7 @@ fp_filtered_data <- samedist_fxn(fps$fp_federal_2019, fps$fp_federal_2016) %>%
 
 #------------ MERGE TCP WITH FP DATA  ----------# 
 
-tcp_data <- fp_filtered_data %>% 
+tcp_new <- fp_filtered_data %>% 
   select(division, year, fp_vote_share, Surname) %>% 
   right_join(temp_tcp, by = c("division", "year", "Surname")) %>% 
   #only variables we want, maybe can do something with these variables later...
@@ -242,17 +242,19 @@ tcp_data <- fp_filtered_data %>%
                              PartyAb == "IND" ~ "IND",
                              PartyAb == "PUP" ~ "PUP",
                              PartyAb == "KAP" ~ "KAP"),
-         incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0)) %>% 
+         incumbent = ifelse(surname_t0 == 1 & tcp_t0 > 0.50, 1, 0),
+         alp_incumbent = ifelse(incumbent == 1 & PartyAb == "ALP", 1, 0),
+         lnp_incumbent = ifelse(incumbent == 1 & PartyAb == "LNP", 1, 0)) %>% 
   group_by(division, year) %>% 
   mutate(open_seat = ifelse(incumbent == 0 & (lag(incumbent == 0) | lead(incumbent == 0)), 1, 0),
          open_seat = ifelse(is.na(open_seat) & !is.na(incumbent), 0, open_seat))
 
-View(tcp_data)
+View(tcp_new)
 
 #------------ MERGE TPP WITH FP DATA  ----------# 
 
-tpp_data <- tcp_data %>% 
-  select(division, year, fp_vote_share, Surname, PartyAb, open_seat) %>% 
+tpp_new <- tcp_new %>% 
+  select(division, year, fp_vote_share, tcp_vote_share, Surname, PartyAb, open_seat) %>% 
   inner_join(temp_tpp, by = c("division", "year")) %>% 
   mutate(alp_fp = ifelse(PartyAb.x == "ALP", fp_vote_share, NA), 
          lnp_fp = ifelse(PartyAb.x == "LNP", fp_vote_share, NA)) %>% 
@@ -262,16 +264,18 @@ tpp_data <- tcp_data %>%
   filter(PartyAb.x == "ALP") %>% 
   group_by(division) %>% 
   # add fp lagged variables
-  mutate(alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
+  mutate(alp_fp_t0 = dplyr::lag(alp_fp, default = NA),
+         alp_fp_t1 = dplyr::lead(alp_fp, default = NA),
+         lnp_fp_t0 = dplyr::lag(lnp_fp, default = NA),
          lnp_fp_t1 = dplyr::lead(lnp_fp, default = NA)) %>% 
   ungroup() %>% 
   rename(PartyAb = PartyAb.x) %>% 
   mutate(DivisionNm = toupper(DivisionNm)) %>% 
   select(-c(division, PartyAb.y)) 
 
-View(tpp_data)
+View(tpp_new)
 
 #------------ SAVE CLEAN DATA  ----------# 
 
-write.csv(tpp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
-write.csv(tcp_data, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
+write.csv(tpp_new, "~/Dropbox/Thesis/inc_adv/clean_data/tpp_data.csv")
+write.csv(tcp_new, "~/Dropbox/Thesis/inc_adv/clean_data/tcp_data.csv")
